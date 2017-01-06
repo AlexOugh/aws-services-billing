@@ -1,7 +1,7 @@
 'use strict';
 console.log('Loading function');
 
-var auth = require('./lib/authorizer');
+var auth = require('./authorizer');
 
 exports.handler = (event, context) => {
 

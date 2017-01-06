@@ -18,6 +18,39 @@ Parameters:
 
 Resources:
 
+  EncryptionDecryptionKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: "Encryption and Decryption key for Lambda"
+      KeyPolicy:
+        Id: "LambdaEncDec"
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "Allow administration of the key"
+            Effect: "Allow"
+            Action:
+              - "kms:*"
+            Principal:
+              AWS: !Ref AWS::AccountId
+            Resource: '*'
+          -
+            Sid: "Allow Encryption Service to use this key"
+            Effect: "Allow"
+            Action:
+              - "kms:Encrypt"
+            Principal:
+              AWS: !GetAtt LambdaFunctionIAMRole.Arn
+            Resource: '*'
+          -
+            Sid: "Allow Decryption Service to use this key"
+            Effect: "Allow"
+            Action:
+              - "kms:Decrypt"
+            Principal:
+              AWS: !GetAtt LambdaFunctionIAMRole.Arn
+            Resource: '*'
+
   RedshiftCluster:
     Type: "AWS::Redshift::Cluster"
     Properties:
@@ -95,6 +128,7 @@ Resources:
           BUCKET_IAM_ROLE_ARN: !GetAtt BucketServiceIAMRole.Arn
           BUCKET_REGION: !Ref 'AWS::Region'
           KMS_REGION: !Ref 'AWS::Region'
+          KEY_ID: !Ref EncryptionDecryptionKey
           REDSHIFT_CONNECTION_STRING: !Join
             - ''
             - - !GetAtt RedshiftCluster.Endpoint.Address

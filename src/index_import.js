@@ -1,47 +1,30 @@
 'use strict';
 
 let pgp = require('pg-promise')();
-let kms = require('../lib/aws_promise/kms');
-let sts = require('../lib/aws_promise/sts');
-let s3 = require('../lib/aws_promise/s3bucket');
+let kms = require('aws-services-lib/aws_promise/kms');
+//let sts = require('aws-services-lib/aws_promise/sts');
+let s3 = require('aws-services-lib/aws_promise/s3bucket');
 
 exports.handler = (event, context, callback) => {
 
   console.log('Received event:', JSON.stringify(event, null, 2));
 
-  let fs = require("fs");
-  let data = fs.readFileSync(__dirname + '/json/default.json', {encoding:'utf8'});
-  let data_json = JSON.parse(data);
-
-  let billingBucketName = data_json.billingBucketName;
-  let billingFileKeyPrefix = data_json.billingFileKeyPrefix;
-  let bucketIAMRoleArn = data_json.bucketIAMRoleArn;
-  let bucketRegion = data_json.bucketRegion;
-  let kmsRegion = data_json.kmsRegion;
-  let federateRoleArn = data_json.federateRoleArn;
-  let accountRoleArn = data_json.accountRoleArn;
-  let externalId = data_json.externalId;
-  //let dynamoDBTableName = data_json.dynamoDBTableName;
-  let redshiftConnectionString = data_json.redshiftConnectionString;
-  let redshiftUser = data_json.redshiftUser;
-  let redshiftPass = data_json.redshiftPass;
+  let bucketIAMRoleArn = process.env.BUCKET_IAM_ROLE_ARN;
+  let bucketRegion = process.env.BUCKET_REGION;
+  let kmsRegion = process.env.BUCKET_REGION;
+  //let federateRoleArn = process.env.federateRoleArn;
+  //let accountRoleArn = process.env.accountRoleArn;
+  //let externalId = process.env.externalId;
+  //let dynamoDBTableName = process.env.dynamoDBTableName;
+  let redshiftConnectionString = process.env.REDSHIFT_CONNECTION_STRING;
+  let redshiftUser = process.env.REDSHIFT_USER;
+  let redshiftPass = process.env.REDSHIFT_PASS;
 
   // Get the object from the event and show its content type
   const bucket = event.Records[0].s3.bucket.name;
   const key = decodeURIComponent(event.Records[0].s3.object.key.replace(/\+/g, ' '));
   var tokens = key.split('/');
-  if (bucket !== billingBucketName) {
-    console.log("not a target bucket, so just return");
-    callback(null, null);
-    return;
-  }
-  else if (key.indexOf(billingFileKeyPrefix)) {
-    // '/FeedToRedshift/20160801-20160901/c6d4c249-6872-4ae2-9cd3-35fd43254878/FeedToRedshift-RedshiftCommands.sql'
-    console.log("not a target key, so just return");
-    callback(null, null);
-    return;
-  }
-  else if (tokens[tokens.length-1].indexOf('.sql') < 0) {
+  if (tokens[tokens.length-1].indexOf('.sql') < 0) {
     console.log("not an sql file, so just return");
     callback(null, null);
     return;
@@ -58,21 +41,8 @@ exports.handler = (event, context, callback) => {
       redshiftPass = data.Plaintext.toString();
       redshiftConnectionString = 'pg:' + redshiftUser + ':' + redshiftPass + '@' + redshiftConnectionString;
     }).then(function() {
-      params = {
-        federateRoleArn: federateRoleArn,
-        accountRoleArn: accountRoleArn,
-        externalId: externalId
-      }
-      return sts.assumeRole(params).then(function(creds) {
-        return creds;
-      }).catch(function(err) {
-        console.log(err);
-        callback(err);
-      });
-    }).then(function(creds) {
       // get sqls first
       params = {
-        creds: creds,
         bucket: bucket,
         key: key
       }
@@ -130,7 +100,7 @@ exports.handler = (event, context, callback) => {
   }
 };
 
-function exportToDynamoDB(connection, yearMonth, bucketRegion, dynamoDBTableName) {
+/*function exportToDynamoDB(connection, yearMonth, bucketRegion, dynamoDBTableName) {
 
   var AWS = require('aws-sdk');
   var docClient = new AWS.DynamoDB.DocumentClient({region: bucketRegion});
@@ -212,3 +182,4 @@ function exportToDynamoDB(connection, yearMonth, bucketRegion, dynamoDBTableName
 		});
   });
 }
+*/
