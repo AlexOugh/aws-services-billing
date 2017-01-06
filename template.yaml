@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: API Gateway and Lambda functions along with related resources for Billing Dashboard.
+
+Parameters:
+  RedshiftUser:
+    Type: String
+    Default: "billing"
+    Description: User Name for Redshift Cluster
+  RedshiftPass:
+    Type: String
+    NoEcho: true
+    Description: Password for Redshift Cluster. Password should be atleast 8 characters long.
+  RedshiftDatabase:
+    Type: String
+    Default: "billing"
+    Description: Database Name for Redshift Cluster
+
+Resources:
+
+  RedshiftCluster:
+    Type: "AWS::Redshift::Cluster"
+    Properties:
+      DBName: !Ref RedshiftDatabase
+      MasterUsername: !Ref RedshiftUser
+      MasterUserPassword: !Ref RedshiftPass
+      NodeType: "dw.hs1.xlarge"
+      ClusterType: "single-node"
+
+  BucketServiceIAMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "AllowRedshiftServiceToAssumeRole"
+            Effect: "Allow"
+            Action:
+              - "sts:AssumeRole"
+            Principal:
+              Service:
+                - "redshift.amazonaws.com"
+
+  LambdaFunctionIAMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "AllowLambdaServiceToAssumeRole"
+            Effect: "Allow"
+            Action:
+              - "sts:AssumeRole"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+      Policies:
+        -
+          PolicyName: "InlinePolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action:
+                  - "iam:*"
+                  - "kms:*"
+                  - "s3:*"
+                  - "sts:*"
+                Resource: "*"
+              -
+                Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+
+  ImportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index_import.handler
+      Runtime: nodejs4.3
+      CodeUri: s3://sgas.sam.aws-services-billing/billing.zip
+      Role: !GetAtt LambdaFunctionIAMRole.Arn
+      Timeout: 300
+      Environment:
+        Variables:
+          BUCKET_IAM_ROLE_ARN: !GetAtt BucketServiceIAMRole.Arn
+          BUCKET_REGION: !Ref 'AWS::Region'
+          KMS_REGION: !Ref 'AWS::Region'
+          REDSHIFT_CONNECTION_STRING: !Join
+            - ''
+            - - !GetAtt RedshiftCluster.Endpoint.Address
+              - ':'
+              - !GetAtt RedshiftCluster.Endpoint.Port
+              - '/'
+              - !Ref RedshiftDatabase
+          REDSHIFT_USER: !Ref RedshiftUser
+          REDSHIFT_PASS: !Ref RedshiftPass
+      Events:
+        BillingDataUpload:
+          Type: S3
+          Properties:
+            Bucket: !Ref Bucket
+            Events: s3:ObjectCreated:*
+
+  Bucket:
+    Type: AWS::S3::Bucket
