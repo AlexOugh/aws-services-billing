@@ -115,6 +115,16 @@ Resources:
                   - "logs:PutLogEvents"
                 Resource: "arn:aws:logs:*:*:*"
 
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      DefinitionUri: s3://sgas.sam.aws-services-billing/swagger.yaml
+      StageName: Prod
+      Variables:
+        AWSAccount: !Ref AWS::AccountId
+        AWSRegion: !Ref AWS::Region
+        LambdaFunctionName: !Ref ProxyFunction
+
   ProxyFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -136,11 +146,12 @@ Resources:
           REDSHIFT_USER: !Ref RedshiftUser
           REDSHIFT_PASS: !Ref RedshiftPass
       Events:
-        GetResource:
+        ProxyApiGreedy:
           Type: Api
           Properties:
-            Path: /billing
-            Method: get
+            RestApiId: !Ref ApiGatewayApi
+            Path: /{proxy+}
+            Method: ANY
 
   ImportFunction:
     Type: AWS::Serverless::Function

@@ -1,21 +1,17 @@
 'use strict';
 
-let kms = require('../lib/aws_promise/kms');
+let kms = require('aws-services-lib/aws_promise/kms');
 let pgp = require('pg-promise')();
 let dateformat = require('dateformat');
 
 module.exports = {
 
-  get: function(params) {
+  post: function(params) {
 
-    var fs = require("fs");
-    var data = fs.readFileSync(__dirname + '/json/default.json', {encoding:'utf8'});
-    var data_json = JSON.parse(data);
-
-    let kmsRegion = data_json.kmsRegion;
-    let redshiftConnectionString = data_json.redshiftConnectionString;
-    let redshiftUser = data_json.redshiftUser;
-    let redshiftPass = data_json.redshiftPass;
+    let kmsRegion = process.env.BUCKET_REGION;
+    let redshiftConnectionString = process.env.REDSHIFT_CONNECTION_STRING;
+    let redshiftUser = process.env.REDSHIFT_USER;
+    let redshiftPass = process.env.REDSHIFT_PASS;
 
     var input = {
       region: kmsRegion,

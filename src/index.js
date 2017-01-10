@@ -32,7 +32,7 @@ exports.handler = (event, context) => {
   }
 
   // authorize first
-  auth.authorize(headers.refresh_token).then(data => {
+  auth.authorize(headers.Authorization).then(data => {
     /*console.log(data);
     var ret = JSON.parse(data);
     if (!ret.refresh_token) {
@@ -42,14 +42,19 @@ exports.handler = (event, context) => {
     return '';
   }).then(refreshToken => {
     var controller = null;
-    if (queryParams.sql) {
+    var params = null;
+    if (postData && postData.sql) {
       controller = require('./sql_controller');
+      params = postData;
     }
     else {
       controller = require('./billing_controller');
+      params = queryParams;
     }
     // run the method
-    controller.get(queryParams).then(data => {
+    const action = method.toLowerCase();
+    console.log(action);
+    controller[action](params).then(data => {
       console.log(data);
       sendSuccessResponse(data, context);
     }).catch(err => {

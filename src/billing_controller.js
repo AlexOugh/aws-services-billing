@@ -1,6 +1,6 @@
 'use strict';
 
-let kms = require('../lib/aws_promise/kms');
+let kms = require('aws-services-lib/aws_promise/kms');
 let pgp = require('pg-promise')();
 let dateformat = require('dateformat');
 
@@ -8,15 +8,10 @@ module.exports = {
 
   get: function(params) {
 
-    let fs = require("fs");
-    let data = fs.readFileSync(__dirname + '/json/default.json', {encoding:'utf8'});
-    let data_json = JSON.parse(data);
-
-    let kmsRegion = data_json.kmsRegion;
-    let redshiftConnectionString = data_json.redshiftConnectionString;
-    let redshiftUser = data_json.redshiftUser;
-    let redshiftPass = data_json.redshiftPass;
-    console.log('data_json:', data_json);
+    let kmsRegion = process.env.BUCKET_REGION;
+    let redshiftConnectionString = process.env.REDSHIFT_CONNECTION_STRING;
+    let redshiftUser = process.env.REDSHIFT_USER;
+    let redshiftPass = process.env.REDSHIFT_PASS;
 
     var yearMonth = dateformat(new Date(), 'yyyymm');
     var queryMaxEndDate = "select MAX(lineitem_usageenddate) \
@@ -28,7 +23,7 @@ module.exports = {
     var yearMonth = dateformat(new Date(), 'yyyymm');
     var querySum = "";
 
-    if (params.account) {
+    if (params && params.account) {
       querySum = "select lineItem_UsageAccountId, lineitem_productcode, \
         sum(cast(lineItem_BlendedCost as float)) blended, \
         sum(cast(lineitem_unblendedcost as float)) unblended \
@@ -130,7 +125,7 @@ module.exports = {
     }).then(function(data) {
       console.log(data);
       pgp.end();
-      if (params.account) {
+      if (params && params.account) {
         var merged = mergeServices(data);
         return merged;
       }
