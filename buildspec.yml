@@ -9,7 +9,7 @@ phases:
       - aws s3 cp billing.zip s3://sgas.sam.aws-services-billing
       - aws s3 cp swagger.yaml s3://sgas.sam.aws-services-billing
       - aws cloudformation package
-         --template-file template.yaml
+         --template-file template.swagger.yaml
          --s3-bucket sgas.sam.aws-services-billing
          --output-template-file samTemplate.yaml
 artifacts:
