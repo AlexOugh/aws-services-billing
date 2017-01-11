@@ -138,9 +138,9 @@ Resources:
           KMS_REGION: !Ref 'AWS::Region'
           REDSHIFT_CONNECTION_STRING: !Join
             - ''
-            - - !GetAtt RedshiftCluster.Endpoint.Address
+            - - !Sub "${RedshiftCluster.Endpoint.Address}"
               - ':'
-              - !GetAtt RedshiftCluster.Endpoint.Port
+              - !Sub "${RedshiftCluster.Endpoint.Port}"
               - '/'
               - !Ref RedshiftDatabase
           REDSHIFT_USER: !Ref RedshiftUser
