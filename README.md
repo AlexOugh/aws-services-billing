@@ -20,7 +20,7 @@ Input Parameter Values
 - GitHubSourceRepositoryBranch: master
 - GitHubSourceRepositoryName: aws-services-billing
 - GitHubSourceRepositoryOwner: SungardAS
-- ParameterOverrides:
+- ParameterOverrides: { "RedshiftUser": "*username*", "RedshiftPass": "*password*", "RedshiftDatabase": "*database_name*" }
 - ProjectImage: aws/codebuild/nodejs:4.3.2
 
 ## How To Test Lambda Functions

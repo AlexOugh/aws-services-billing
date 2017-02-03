@@ -11,7 +11,7 @@ Parameters:
     Type: String
     NoEcho: true
     Description: Password for Redshift Cluster. Password should be atleast 8 characters long.
-  RedshiftDatabase:
+  RedshiftConnectionString:
     Type: String
     Default: "billing"
     Description: Database Name for Redshift Cluster
@@ -98,13 +98,7 @@ Resources:
       Timeout: 300
       Environment:
         Variables:
-          REDSHIFT_CONNECTION_STRING: !Join
-            - ''
-            - - !Sub "${RedshiftCluster.Endpoint.Address}"
-              - ':'
-              - !Sub "${RedshiftCluster.Endpoint.Port}"
-              - '/'
-              - !Ref RedshiftDatabase
+          REDSHIFT_CONNECTION_STRING: !Ref RedshiftConnectionString
           REDSHIFT_USER: !Ref RedshiftUser
           REDSHIFT_PASS: !Ref RedshiftPass
           KMS_REGION: !Ref 'AWS::Region'
