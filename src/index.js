@@ -14,56 +14,25 @@ exports.handler = (event, context) => {
   var queryParams = event.queryStringParameters;
   var postData = (event.body) ? JSON.parse(event.body) : null;
 
-  if (path == 'auth' && method == 'POST') {
-    auth.authenticate(postData.username, postData.password).then(data => {
-      console.log(data);
-      var ret = JSON.parse(data);
-      if (!ret.refresh_token) {
-        sendFailureResponse({error: 'unauthorized'}, 401, context);
-      }
-      else {
-        sendSuccessResponse(ret, context);
-      }
-    }).catch(err => {
-      console.log(err);
-      sendFailureResponse({error: 'unauthorized'}, 401, context);
-    });
-    return;
+  var controller = null;
+  var params = null;
+  if (postData && postData.sql) {
+    controller = require('./sql_controller');
+    params = postData;
   }
-
-  // authorize first
-  auth.authorize(headers.Authorization).then(data => {
-    /*console.log(data);
-    var ret = JSON.parse(data);
-    if (!ret.refresh_token) {
-      sendFailureResponse({error: 'not permitted'}, 403, context);
-    }
-    return ret.refresh_token;*/
-    return '';
-  }).then(refreshToken => {
-    var controller = null;
-    var params = null;
-    if (postData && postData.sql) {
-      controller = require('./sql_controller');
-      params = postData;
-    }
-    else {
-      controller = require('./billing_controller');
-      params = queryParams;
-    }
-    // run the method
-    const action = method.toLowerCase();
-    console.log(action);
-    controller[action](params).then(data => {
-      console.log(data);
-      sendSuccessResponse(data, context);
-    }).catch(err => {
-      console.log(err);
-      sendFailureResponse({error: err}, 500, context);
-    });
+  else {
+    controller = require('./billing_controller');
+    params = queryParams;
+  }
+  // run the method
+  const action = method.toLowerCase();
+  console.log(action);
+  controller[action](params).then(data => {
+    console.log(data);
+    sendSuccessResponse(data, context);
   }).catch(err => {
     console.log(err);
-    sendFailureResponse({error: 'not permitted'}, 403, context);
+    sendFailureResponse({error: err}, 500, context);
   });
 }
 

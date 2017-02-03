@@ -51,33 +51,6 @@ Resources:
               AWS: !GetAtt LambdaFunctionIAMRole.Arn
             Resource: '*'
 
-  RedshiftCluster:
-    Type: "AWS::Redshift::Cluster"
-    Properties:
-      DBName: !Ref RedshiftDatabase
-      MasterUsername: !Ref RedshiftUser
-      MasterUserPassword: !Ref RedshiftPass
-      NodeType: "dw.hs1.xlarge"
-      ClusterType: "single-node"
-
-  BucketServiceIAMRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      Path: "/"
-      ManagedPolicyArns:
-        - "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          -
-            Sid: "AllowRedshiftServiceToAssumeRole"
-            Effect: "Allow"
-            Action:
-              - "sts:AssumeRole"
-            Principal:
-              Service:
-                - "redshift.amazonaws.com"
-
   LambdaFunctionIAMRole:
     Type: "AWS::IAM::Role"
     Properties:
@@ -125,7 +98,6 @@ Resources:
       Timeout: 300
       Environment:
         Variables:
-          KMS_REGION: !Ref 'AWS::Region'
           REDSHIFT_CONNECTION_STRING: !Join
             - ''
             - - !Sub "${RedshiftCluster.Endpoint.Address}"
@@ -135,42 +107,90 @@ Resources:
               - !Ref RedshiftDatabase
           REDSHIFT_USER: !Ref RedshiftUser
           REDSHIFT_PASS: !Ref RedshiftPass
+          KMS_REGION: !Ref 'AWS::Region'
+          KMS_KEY_ID: !Ref EncryptionDecryptionKey
+          KMS_KEY_ARN: !GetAtt EncryptionDecryptionKey.Arn
       Events:
         GetResource:
           Type: Api
           Properties:
+            RestApiId: !Ref ApiGatewayApi
             Path: /billing
             Method: get
 
-  ImportFunction:
+  AlertLambdaFunctionIAMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "AllowLambdaServiceToAssumeRole"
+            Effect: "Allow"
+            Action:
+              - "sts:AssumeRole"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+      Policies:
+        -
+          PolicyName: "InlinePolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action":
+                  - "cloudwatch:*"
+                Resource: "*"
+              -
+                Effect: "Allow"
+                Action": "sns:Publish"
+                Resource: "arn:aws:sns:*"
+              -
+                Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+
+  AlertFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: index_import.handler
+      Handler: index_alert.handler
       Runtime: nodejs4.3
-      CodeUri: s3://sgas.sam.aws-services-billing/billing.zip
-      Role: !GetAtt LambdaFunctionIAMRole.Arn
+      CodeUri: ./src
+      Role: !GetAtt AlertLambdaFunctionIAMRole.Arn
       Timeout: 300
       Environment:
         Variables:
-          BUCKET_IAM_ROLE_ARN: !GetAtt BucketServiceIAMRole.Arn
-          BUCKET_REGION: !Ref 'AWS::Region'
-          KMS_REGION: !Ref 'AWS::Region'
-          KEY_ID: !Ref EncryptionDecryptionKey
-          REDSHIFT_CONNECTION_STRING: !Join
-            - ''
-            - - !Sub "${RedshiftCluster.Endpoint.Address}"
-              - ':'
-              - !Sub "${RedshiftCluster.Endpoint.Port}"
-              - '/'
-              - !Ref RedshiftDatabase
+          REDSHIFT_CONNECTION_STRING: !Ref RedshiftConnectionString
           REDSHIFT_USER: !Ref RedshiftUser
           REDSHIFT_PASS: !Ref RedshiftPass
+          KMS_REGION: !Ref 'AWS::Region'
+          KMS_KEY_ID: !Ref EncryptionDecryptionKey
+          KMS_KEY_ARN: !GetAtt EncryptionDecryptionKey.Arn
       Events:
-        BillingDataUpload:
-          Type: S3
+        Scheduler:
+          Type: Schedule
           Properties:
-            Bucket: !Ref Bucket
-            Events: s3:ObjectCreated:*
+            Schedule: rate(5 minutes)
 
-  Bucket:
-    Type: AWS::S3::Bucket
+Outputs:
+  ApiUrl:
+    Description: URL of your API endpoint
+    Value: !Join
+      - ''
+      - - https://
+        - !Ref ApiGatewayApi
+        - '.execute-api.'
+        - !Ref 'AWS::Region'
+        - '.amazonaws.com/Prod'
+  AlertLambdaFunction:
+    Description: "Alert Lambda Function ARN"
+    Value: !GetAtt AlertFunction.Arn
+  ProxyLambdaFunction:
+    Description: "Proxy Lambda Function ARN"
+    Value: !GetAtt ProxyFunction.Arn

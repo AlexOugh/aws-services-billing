@@ -1,5 +1,0 @@
-
-aws lambda update-function-code \
-  --function-name aws-services-billing-ImportFunction-K1LOJ33GFKJR \
-  --s3-bucket sgas.sam.aws-services-billing \
-  --s3-key billing.zip
