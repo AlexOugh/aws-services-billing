@@ -3,6 +3,15 @@ Transform: AWS::Serverless-2016-10-31
 Description: API Gateway and Lambda functions along with related resources for Billing Dashboard.
 
 Parameters:
+  VPCCidrBlock:
+    Type: String
+    Description: CidrBlock for Redshift Cluster VPC
+  SubnetCidrBlock1:
+    Type: String
+    Description: CidrBlock for Redshift Cluster VPC Subnet 1
+  SubnetCidrBlock2:
+    Type: String
+    Description: CidrBlock for Redshift Cluster VPC Subnet 2
   RedshiftUser:
     Type: String
     Default: "billing"
@@ -11,12 +20,76 @@ Parameters:
     Type: String
     NoEcho: true
     Description: Password for Redshift Cluster. Password should be atleast 8 characters long.
-  RedshiftConnectionString:
+  RedshiftDatabase:
     Type: String
     Default: "billing"
-    Description: Database Name for Redshift Cluster
+    Description: Database Name for Redshift Cluster. Don't Enter Value if 'RedshiftConnectionString' Has Value
 
 Resources:
+  RedshiftClusterVPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: !Ref VPCCidrBlock
+      Tags:
+        -
+          Key: Name
+          Value: RedshiftClusterVPC
+
+  RedshiftClusterVPCSubnet1:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      CidrBlock: !Ref SubnetCidrBlock1
+      Tags:
+        -
+          Key: Name
+          Value: RedshiftClusterVPCSubnet1
+      VpcId: !Ref RedshiftClusterVPC
+
+  RedshiftClusterVPCSubnet2:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      CidrBlock: !Ref SubnetCidrBlock2
+      Tags:
+        -
+          Key: Name
+          Value: RedshiftClusterVPCSubnet2
+      VpcId: !Ref RedshiftClusterVPC
+
+  RedshiftClusterSubnetGroup:
+    Type: "AWS::Redshift::ClusterSubnetGroup"
+    Properties:
+      Description: Subnet Group for Redshift Cluster
+      SubnetIds:
+        - !Ref RedshiftClusterVPCSubnet1
+        - !Ref RedshiftClusterVPCSubnet2
+
+  RedshiftCluster:
+    Type: "AWS::Redshift::Cluster"
+    Properties:
+      DBName: !Ref RedshiftDatabase
+      MasterUsername: !Ref RedshiftUser
+      MasterUserPassword: !Ref RedshiftPass
+      NodeType: "dc1.large"
+      ClusterType: "single-node"
+      Encrypted: true
+
+  BucketServiceIAMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "AllowRedshiftServiceToAssumeRole"
+            Effect: "Allow"
+            Action:
+              - "sts:AssumeRole"
+            Principal:
+              Service:
+                - "redshift.amazonaws.com"
 
   EncryptionDecryptionKey:
     Type: AWS::KMS::Key
@@ -88,29 +161,79 @@ Resources:
                   - "logs:PutLogEvents"
                 Resource: "arn:aws:logs:*:*:*"
 
-  ProxyFunction:
+  ImportFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: index.handler
+      Handler: index_import.handler
       Runtime: nodejs4.3
-      CodeUri: s3://sgas.sam.aws-services-billing/billing.zip
+      CodeUri: ./src
       Role: !GetAtt LambdaFunctionIAMRole.Arn
       Timeout: 300
       Environment:
         Variables:
-          REDSHIFT_CONNECTION_STRING: !Ref RedshiftConnectionString
+          BUCKET_IAM_ROLE_ARN: !GetAtt BucketServiceIAMRole.Arn
+          BUCKET_REGION: !Ref 'AWS::Region'
+          REDSHIFT_CONNECTION_STRING: !Join
+            - ''
+            - - !Sub "${RedshiftCluster.Endpoint.Address}"
+              - ':'
+              - !Sub "${RedshiftCluster.Endpoint.Port}"
+              - '/'
+              - !Ref RedshiftDatabase
           REDSHIFT_USER: !Ref RedshiftUser
           REDSHIFT_PASS: !Ref RedshiftPass
           KMS_REGION: !Ref 'AWS::Region'
           KMS_KEY_ID: !Ref EncryptionDecryptionKey
           KMS_KEY_ARN: !GetAtt EncryptionDecryptionKey.Arn
       Events:
-        GetResource:
+        BillingDataUpload:
+          Type: S3
+          Properties:
+            Bucket: !Ref Bucket
+            Events: s3:ObjectCreated:*
+
+  Bucket:
+    Type: AWS::S3::Bucket
+
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      DefinitionUri: ./swagger.yaml
+      StageName: Prod
+      Variables:
+        AWSAccount: !Ref AWS::AccountId
+        AWSRegion: !Ref AWS::Region
+        LambdaFunctionName: !Ref ProxyFunction
+
+  ProxyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handler
+      Runtime: nodejs4.3
+      CodeUri: ./src
+      Role: !GetAtt LambdaFunctionIAMRole.Arn
+      Timeout: 300
+      Environment:
+        Variables:
+          REDSHIFT_CONNECTION_STRING: !Join
+            - ''
+            - - !Sub "${RedshiftCluster.Endpoint.Address}"
+              - ':'
+              - !Sub "${RedshiftCluster.Endpoint.Port}"
+              - '/'
+              - !Ref RedshiftDatabase
+          REDSHIFT_USER: !Ref RedshiftUser
+          REDSHIFT_PASS: !Ref RedshiftPass
+          KMS_REGION: !Ref 'AWS::Region'
+          KMS_KEY_ID: !Ref EncryptionDecryptionKey
+          KMS_KEY_ARN: !GetAtt EncryptionDecryptionKey.Arn
+      Events:
+        ProxyApiGreedy:
           Type: Api
           Properties:
             RestApiId: !Ref ApiGatewayApi
-            Path: /billing
-            Method: get
+            Path: /{proxy+}
+            Method: ANY
 
   AlertLambdaFunctionIAMRole:
     Type: "AWS::IAM::Role"
@@ -135,12 +258,13 @@ Resources:
             Statement:
               -
                 Effect: "Allow"
-                Action":
+                Action:
                   - "cloudwatch:*"
                 Resource: "*"
               -
                 Effect: "Allow"
-                Action": "sns:Publish"
+                Action:
+                  - "sns:Publish"
                 Resource: "arn:aws:sns:*"
               -
                 Effect: "Allow"
@@ -160,7 +284,13 @@ Resources:
       Timeout: 300
       Environment:
         Variables:
-          REDSHIFT_CONNECTION_STRING: !Ref RedshiftConnectionString
+          REDSHIFT_CONNECTION_STRING: !Join
+            - ''
+            - - !Sub "${RedshiftCluster.Endpoint.Address}"
+              - ':'
+              - !Sub "${RedshiftCluster.Endpoint.Port}"
+              - '/'
+              - !Ref RedshiftDatabase
           REDSHIFT_USER: !Ref RedshiftUser
           REDSHIFT_PASS: !Ref RedshiftPass
           KMS_REGION: !Ref 'AWS::Region'
@@ -182,9 +312,18 @@ Outputs:
         - '.execute-api.'
         - !Ref 'AWS::Region'
         - '.amazonaws.com/Prod'
-  AlertLambdaFunction:
+  AlertLambdaFunctionArn:
     Description: "Alert Lambda Function ARN"
     Value: !GetAtt AlertFunction.Arn
-  ProxyLambdaFunction:
+  ProxyLambdaFunctionArn:
     Description: "Proxy Lambda Function ARN"
     Value: !GetAtt ProxyFunction.Arn
+  ImportLambdaFunctionArn:
+    Description: "Import Lambda Function ARN"
+    Value: !GetAtt ImportFunction.Arn
+  BillingDataUploadBucketName:
+    Description: "Billing Data Upload Bucket Name"
+    Value: !Ref Bucket
+  BucketServiceIAMRoleNameForRedshift:
+    Description: "Name of IAM Role that permits Redshift to access S3 Bucket"
+    Value: !Ref BucketServiceIAMRole
