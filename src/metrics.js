@@ -1,7 +1,8 @@
 
-var provider = new (require('../lib/aws/assume_role_provider'))();
-var aws_watch_remote = new (require('../lib/aws/cloudwatch.js'))();
-var aws_watch_local = new (require('../lib/aws/cloudwatch.js'))();
+var AWS = require('aws-sdk');
+var aws_lambda = new (require('aws-services-lib/aws/lambda.js'))();
+var aws_watch_remote = new (require('aws-services-lib/aws/cloudwatch.js'))();
+var aws_watch_local = new (require('aws-services-lib/aws/cloudwatch.js'))();
 
 function Metrics() {
 
@@ -40,7 +41,7 @@ function Metrics() {
    Unit: 'None'
   };
 
-  this.CTOEstimatedChargesMetricQuery = {
+  /*this.CTOEstimatedChargesMetricQuery = {
     StartTime: null,
     EndTime: null,
     MetricName: 'EstimatedCharges',
@@ -60,7 +61,7 @@ function Metrics() {
       }
    ],
    Unit: 'None'
-  };
+ };*/
 
   // metrics for Increased data metrics
   this.CTOIncreasedMetricData = {
@@ -78,6 +79,18 @@ function Metrics() {
         Value: null
       },
       {
+        MetricName: 'EstimatedCharges',
+        Dimensions: [
+          {
+            Name: 'LinkedAccount',
+            Value: null
+          }
+        ],
+        Timestamp: null,
+        Unit: 'None',
+        Value: null
+      },
+      /*{
         MetricName: 'IncreasedUsages',
         Dimensions: [
           {
@@ -100,7 +113,7 @@ function Metrics() {
         Timestamp: null,
         Unit: 'None',
         Value: null
-      }
+      }*/
     ],
     Namespace: 'CTOBilling'
   };
@@ -125,7 +138,7 @@ function Metrics() {
   };
 
   // metrics for IncreasedUsages Query
-  this.IncreasedUsagesMetricQuery = {
+  /*this.IncreasedUsagesMetricQuery = {
     StartTime: null,
     EndTime: null,
     MetricName: 'IncreasedUsages',
@@ -141,10 +154,10 @@ function Metrics() {
       }
    ],
    Unit: 'None'
-  };
+ };*/
 
   // metrics for IncreasedUsages Query
-  this.PrevMonthAvgUsageMetricQuery = {
+  /*this.PrevMonthAvgUsageMetricQuery = {
     StartTime: null,
     EndTime: null,
     MetricName: 'PrevMonthAvgUsage',
@@ -160,7 +173,7 @@ function Metrics() {
       }
    ],
    Unit: 'None'
-  };
+ };*/
 
   var me = this;
 
@@ -174,7 +187,7 @@ function Metrics() {
     return me.AWSEstimatedChargesMetricQuery;
   }
 
-  function buildCTOEstimatedChargesMetricQuery() {
+  /*function buildCTOEstimatedChargesMetricQuery() {
     var startTime = new Date(me.current.getFullYear(), me.current.getMonth(), me.current.getDate());
     //me.current.setMinutes(me.current.getMinutes() - 5);
     startTime.setHours(startTime.getHours() - 24*14);
@@ -182,12 +195,12 @@ function Metrics() {
     me.CTOEstimatedChargesMetricQuery.EndTime = me.current;
     me.CTOEstimatedChargesMetricQuery.Dimensions[0].Value = me.accountId;
     return me.CTOEstimatedChargesMetricQuery;
-  }
+  }*/
 
   function buildEstimatedChargesMetricsData() {
     console.log('<<<Starting buildEstimatedChargesMetricsData...');
-    if (me.simulated) metricQuery = buildCTOEstimatedChargesMetricQuery();
-    else metricQuery = buildAWSEstimatedChargesMetricQuery();
+    /*if (me.simulated) metricQuery = buildCTOEstimatedChargesMetricQuery();
+    else */metricQuery = buildAWSEstimatedChargesMetricQuery();
     me.remoteInput.metricQuery = metricQuery;
     //console.log(JSON.stringify(me.remoteInput));
     console.log('>>>...calling findMetricsStatistics in buildEstimatedChargesMetricsData');
@@ -208,7 +221,7 @@ function Metrics() {
     aws_watch_local.findMetricsStatistics(me.localInput);
   }
 
-  function buildIncreasedUsagesMetricQuery(callback) {
+  /*function buildIncreasedUsagesMetricQuery(callback) {
     console.log('<<<Starting buildIncreasedUsagesMetricQuery...');
     var startTime = new Date(me.current.getFullYear(), me.current.getMonth(), me.current.getDate());
     //me.current.setMinutes(me.current.getMinutes() - 5);
@@ -236,7 +249,7 @@ function Metrics() {
     aws_watch_local.findMetricsStatistics(me.localInput, callback);
   }
 
-  /*function findPrevMonthAvgUsage() {
+  function findPrevMonthAvgUsage() {
     var firstOfThisMonth = new Date(me.current.getFullYear(), me.current.getMonth(), 1);
     var lastOfPrevMonth = new Date(firstOfThisMonth - 1);
     var metrics = me.remoteInput.metrics.filter(function(metric) {
@@ -245,7 +258,7 @@ function Metrics() {
     if (metrics.length == 0)  return null;
     var numOfDays = new Date(lastOfPrevMonth.getFullYear(), lastOfPrevMonth.getMonth()+1, 0).getDate();
     return metrics[0].Maximum / numOfDays;
-  }*/
+  }
 
   function getPrevMonthAvgUsage(callback) {
     console.log('<<<Starting getPrevMonthAvgUsage...');
@@ -275,6 +288,9 @@ function Metrics() {
       }
     });
   }
+  function getPrevMonthAvgUsage(callback) {
+    console.log('<<<Starting getPrevMonthAvgUsage...');
+  }*/
 
   function buildIncreasedMetricsData() {
 
@@ -298,18 +314,22 @@ function Metrics() {
         return;
       }
     }
+
+    var curEstimatedCharge = metrics[0].Maximum;
+    var prevEstimatedCharge = 0;
     var increased = 0;
     var percentage = 0;
     var timeStamp = metrics[0].Timestamp;
     if (metrics.length >= 2) {
-      increased = metrics[0].Maximum - metrics[1].Maximum;
-      if (metrics[1].Maximum > 0) {
-        percentage = (increased / metrics[1].Maximum) * 100;
+      prevEstimatedCharge = metrics[1].Maximum;
+      increased = curEstimatedCharge - prevEstimatedCharge;
+      if (prevEstimatedCharge > 0) {
+        percentage = (increased / prevEstimatedCharge) * 100;
       }
     }
 
     // find the average of the previous month
-    var prevMonthAveUsage = 0;
+    /*var prevMonthAveUsage = 0;
     getPrevMonthAvgUsage(function(err, data) {
       if(err) {
         console.log("failed to get the average of previous month usages");
@@ -320,24 +340,29 @@ function Metrics() {
 
       console.log(increased);
       console.log(percentage);
-      console.log(prevMonthAveUsage);
+      console.log(prevMonthAveUsage);*/
 
-      currentTime = new Date();
+      //currentTime = new Date();
       metricData = me.CTOIncreasedMetricData;
-      metricData.MetricData[0].Timestamp = currentTime;
+      //metricData.MetricData[0].Timestamp = currentTime;
+      metricData.MetricData[0].Timestamp = timeStamp;
       metricData.MetricData[0].Value = percentage;
       metricData.MetricData[0].Dimensions[0].Value = me.accountId;
-      metricData.MetricData[1].Timestamp = currentTime;
+      metricData.MetricData[1].Timestamp = timeStamp;
+      metricData.MetricData[1].Value = curEstimatedCharge;
+      metricData.MetricData[1].Dimensions[0].Value = me.accountId;
+      /*metricData.MetricData[1].Timestamp = currentTime;
       metricData.MetricData[1].Value = increased;
       metricData.MetricData[1].Dimensions[0].Value = me.accountId;
       metricData.MetricData[2].Timestamp = currentTime;
       metricData.MetricData[2].Value = prevMonthAveUsage;
-      metricData.MetricData[2].Dimensions[0].Value = me.accountId;
+      metricData.MetricData[2].Dimensions[0].Value = me.accountId;*/
       me.localInput.metricData = metricData;
       //console.log(JSON.stringify(me.localInput));
+      console.log(JSON.stringify(metricData));
       console.log('>>>...completed buildIncreasedMetricsData');
       aws_watch_local.addMetricData(me.localInput);
-    });
+    //});
   }
 
   function succeeded(input) { console.log(input); me.callback(null, true); }
@@ -360,7 +385,9 @@ function Metrics() {
 
     me.accountId = accountId;
     me.localInput.region = localRegion;
+    me.localInput.metrics = null;
     me.remoteInput.region = remoteRegion;
+    me.remoteInput.metrics = null;
     me.callback = callback;
     me.simulated = simulated;
     if (current)  me.current = current;
@@ -376,20 +403,37 @@ function Metrics() {
     aws_watch_remote.flows = flows;
     aws_watch_local.flows = flows;
 
-    provider.getCredential(roles, sessionName, durationSeconds, null, function(err, data) {
+    var fedParams = {
+      region: remoteRegion,
+      roles: roles,
+      sessionName: sessionName,
+      durationSeconds: durationSeconds,
+      fedFunctionName: process.env.FEDERATION_FUNCTION_NAME
+    }
+
+    //provider.getCredential(roles, sessionName, durationSeconds, null, function(err, data) {
+    aws_lambda.federate(fedParams, function(err, data) {
       if(err) {
-        console.log("failed to get credential : " + err);
         callback(err);
       }
       else {
-        console.log(data);
-        me.remoteInput.creds = data;
-        flows[0].func(me.remoteInput);
+        credentials = JSON.parse(data.Payload).body.Credentials;
+        if (credentials) {
+          me.remoteInput.creds = new AWS.Credentials({
+            accessKeyId: credentials.AccessKeyId,
+            secretAccessKey: credentials.SecretAccessKey,
+            sessionToken: credentials.SessionToken
+          });
+          flows[0].func(me.remoteInput);
+        }
+        else {
+          callback("failed to federate");
+        }
       }
     });
   }
 
-  me.isIncreasedUsagesOver = function(accountId, localRegion, current, callback) {
+  /*me.isIncreasedUsagesOver = function(accountId, localRegion, current, callback) {
 
     me.accountId = accountId;
     me.localInput.region = localRegion;
@@ -426,7 +470,7 @@ function Metrics() {
         });
       }
     });
-  }
+  }*/
 }
 
 module.exports = Metrics
