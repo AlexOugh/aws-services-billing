@@ -135,6 +135,13 @@ Resources:
         SubnetCidr: !Ref PrivateCidr2
         AvailabilityZone: !Sub "${PublicSubnet2.Outputs.AvailabilityZone}"
         RouteTableId: !Sub "${RouteTables.Outputs.RouteTableIdForPrivateSubnets}"
+  SecurityGroups:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: "./security_groups.yaml"
+      Parameters:
+        NameTag: !Ref NameTag
+        VpcId: !Sub "${Vpc.Outputs.VpcId}"
   NatGateway:
     Type: "AWS::CloudFormation::Stack"
     Properties:
@@ -152,7 +159,7 @@ Resources:
         RedshiftDatabase: !Ref RedshiftDatabase
         RedshiftSubnetId1: !Sub "${PrivateSubnet1.Outputs.SubnetId}"
         RedshiftSubnetId2: !Sub "${PrivateSubnet2.Outputs.SubnetId}"
-        RedshiftSecurityGroupId: !Sub "${Vpc.Outputs.SecurityGroupId}"
+        RedshiftSecurityGroupId: !Sub "${SecurityGroups.Outputs.RedshiftSecurityGroupId}"
   BucketServiceIAMRole:
     Type: "AWS::IAM::Role"
     Properties:
@@ -230,6 +237,7 @@ Resources:
                   - "kms:*"
                   - "s3:*"
                   - "sts:*"
+                  - "ec2:*"
                 Resource: "*"
               -
                 Effect: "Allow"
@@ -255,7 +263,7 @@ Resources:
       Timeout: 300
       VpcConfig:
         SecurityGroupIds:
-          - !Sub "${Vpc.Outputs.SecurityGroupId}"
+          - !Sub "${SecurityGroups.Outputs.RedshiftSecurityGroupId}"
         SubnetIds:
           - !Sub "${PrivateSubnet1.Outputs.SubnetId}"
           - !Sub "${PrivateSubnet2.Outputs.SubnetId}"
@@ -284,7 +292,7 @@ Resources:
       Timeout: 300
       VpcConfig:
         SecurityGroupIds:
-          - !Sub "${Vpc.Outputs.SecurityGroupId}"
+          - !Sub "${SecurityGroups.Outputs.RedshiftSecurityGroupId}"
         SubnetIds:
           - !Sub "${PrivateSubnet1.Outputs.SubnetId}"
           - !Sub "${PrivateSubnet2.Outputs.SubnetId}"
@@ -392,6 +400,7 @@ Resources:
                 Effect: "Allow"
                 Action:
                   - "cloudwatch:*"
+                  - "ec2:*"
                 Resource: "*"
               -
                 Effect: "Allow"
@@ -422,7 +431,7 @@ Resources:
       Timeout: 300
       VpcConfig:
         SecurityGroupIds:
-          - !Sub "${Vpc.Outputs.SecurityGroupId}"
+          - !Sub "${SecurityGroups.Outputs.RedshiftSecurityGroupId}"
         SubnetIds:
           - !Sub "${PrivateSubnet1.Outputs.SubnetId}"
           - !Sub "${PrivateSubnet2.Outputs.SubnetId}"

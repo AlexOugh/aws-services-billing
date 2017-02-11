@@ -7,11 +7,11 @@ Parameters:
   RedshiftDatabase:
     Type: String
   RedshiftSubnetId1:
-    Type: "AWS::EC2::Subnet::Id"
+    Type: String
   RedshiftSubnetId2:
-    Type: "AWS::EC2::Subnet::Id"
+    Type: String
   RedshiftSecurityGroupId:
-    Type: "AWS::EC2::SecurityGroup::Id"
+    Type: String
 Resources:
   RedshiftClusterSubnetGroup:
     Type: "AWS::Redshift::ClusterSubnetGroup"
@@ -30,6 +30,7 @@ Resources:
       ClusterType: "single-node"
       PubliclyAccessible: false
       Encrypted: true
+      ClusterSubnetGroupName: !Ref RedshiftClusterSubnetGroup
       VpcSecurityGroupIds:
         - !Ref RedshiftSecurityGroupId
 Outputs:

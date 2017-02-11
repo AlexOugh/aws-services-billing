@@ -20,8 +20,19 @@ Input Parameter Values
 - GitHubSourceRepositoryBranch: master
 - GitHubSourceRepositoryName: aws-services-billing
 - GitHubSourceRepositoryOwner: SungardAS
-- ParameterOverrides: { "RedshiftUser": "*username*", "RedshiftPass": "*password*", "RedshiftDatabase": "*database_name*" }
+- ParameterOverrides: { "VPCCidrBlock": "10.6.0.0/16", "SubnetCidrBlock1": "10.6.0.0/24", "SubnetCidrBlock2": "10.6.1.0/24", "NameTag": "redshift", "RedshiftUser": "billing", "RedshiftPass": "Sungard01", "RedshiftDatabase": "billing", "AlarmThresholdNumber": 10 }
 - ProjectImage: aws/codebuild/nodejs:4.3.2
+
+## How to Setup a Billing Report to Upload Billing Data to S3 Bucket & Redshift
+
+The creation of this project stack will be started automatically once its Codepipline is successfully setup.
+
+Follow steps in <a href="https://aws.amazon.com/blogs/aws/new-upload-aws-cost-usage-reports-to-redshift-and-quicksight/">here</a>.
+
+  - Specify 'BillingDataUploadBucketName' value in the Output of the newly created this project stack for the S3 Bucket Name
+  - Choose 'BucketServiceIAMRoleNameForRedshift' value in the Output of the newly created this project stack during "Manage IAM Roles"
+
+Once the billing report is created in the S3 bucket, the billing data will be automatically imported to the Redshift.
 
 ## How To Test Lambda Functions
 
