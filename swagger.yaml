@@ -30,7 +30,7 @@ paths:
             statusCode: "200"
             responseParameters:
               method.response.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,Credentials'"
               method.response.header.Access-Control-Allow-Origin: "'*'"
         requestTemplates:
           application/json: "{\"statusCode\": 200}"
@@ -68,7 +68,7 @@ securityDefinitions:
     x-amazon-apigateway-authorizer:
       authorizerCredentials: "arn:aws:iam::AWS::ACCOUNT_ID:role/AWS::CUSTOM_AUTHORIZER_ROLE_NAME"
       authorizerResultTtlInSeconds: 300
-      authorizerUri: "arn:aws:apigateway:AWS::REGION:lambda:path/2015-03-31/functions/arn:aws:lambda:AWS::REGION:AWS::ACCOUNT_ID:function:AWS::CUSTOM_AUTHORIZER_LAMBDA_NAME"
+      authorizerUri: "arn:aws:apigateway:AWS::REGION:lambda:path/2015-03-31/functions/arn:aws:lambda:AWS::REGION:AWS::ACCOUNT_ID:function:AWS::CUSTOM_AUTHORIZER_LAMBDA_NAME/invocations"
       type: "token"
 definitions:
   Empty:
