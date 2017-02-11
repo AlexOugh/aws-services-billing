@@ -13,8 +13,14 @@ module.exports = {
         return self.add(params);
       }
       else {
-        console.log("Alarm found for account " + params.accountId + ", so just return");
-        Promise.resolve(true);
+        if (data.MetricAlarms[0].Threshold == params.threshold) {
+          console.log("Alarm found for account " + params.accountId + ", so just return");
+          Promise.resolve(true);
+        }
+        else {
+          console.log("Threshold has been changed from " + data.MetricAlarms[0].Threshold + " to " + params.threshold + " for account " + params.accountId);
+          return self.add(params);
+        }
       }
     }).catch(function(err) {
       throw err;

@@ -12,17 +12,17 @@ exports.handler = function (event, context) {
   console.log("localRegion = " + localRegion);
   var remoteRegion = 'us-east-1';
 
-  var federateAccount = process.env.FEDERATE_ACCOUNT;
-  var federateRoleName = process.env.FEDERATE_ACCOUNT_ROLE_NAME;
-  var masterBillingAccount = process.env.MASTER_BILLING_ACCOUNT;
-  var roleName = process.env.MASTER_BILLING_ACCOUNT_ROLE_NAME;
-  var roleExternalId = process.env.MASTER_BILLING_ACCOUNT_ROLE_EXTERNAL_ID;
+  //var federateAccount = process.env.FEDERATE_ACCOUNT;
+  //var federateRoleName = process.env.FEDERATE_ACCOUNT_ROLE_NAME;
+  //var masterBillingAccount = process.env.MASTER_BILLING_ACCOUNT;
+  //var roleName = process.env.MASTER_BILLING_ACCOUNT_ROLE_NAME;
+  //var roleExternalId = process.env.MASTER_BILLING_ACCOUNT_ROLE_EXTERNAL_ID;
   var threshold = process.env.THRESHOLD_FOR_ALARMS;
   var topicArn = process.env.TOPIC_ARN_FOR_ALARMS;
-  var sessionName = uuid.v4();
-  var durationSeconds = 0;
+  //var sessionName = uuid.v4();
+  //var durationSeconds = 0;
 
-  var roles = [];
+  /*var roles = [];
   roles.push({roleArn:'arn:aws:iam::' + federateAccount + ':role/' + federateRoleName});
   var admin_role = {roleArn:'arn:aws:iam::' + masterBillingAccount + ':role/' + roleName};
   if (roleExternalId) {
@@ -38,12 +38,14 @@ exports.handler = function (event, context) {
     sessionName: sessionName,
     durationSeconds: durationSeconds,
     fedFunctionName: process.env.FEDERATION_FUNCTION_NAME
-  }
+  }*/
   var remoteCreds = null;
-  aws_lambda.federate(fedParams).then(function(creds) {
+  /*aws_lambda.federate(fedParams).then(function(creds) {
     console.log(creds);
     remoteCreds = creds;
-    return accountFinder.find({region:remoteRegion, credentials:creds});
+    return accountFinder.find({region:remoteRegion, credentials:creds});*/
+  accountFinder.find({region:remoteRegion}).then(function(billingAccounts) {
+    return billingAccounts;
   }).then(function(billingAccounts) {
     console.log(billingAccounts);
     // setup alarms if not exist for each billing account
