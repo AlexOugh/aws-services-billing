@@ -475,3 +475,9 @@ Outputs:
   TopicArn:
     Description: "SNS Topic Arn for Over Increased Percent"
     Value: !Ref Topic
+  BillingDataUploadBucketName:
+    Description: "Billing Data Upload Bucket Name"
+    Value: !Ref Bucket
+  BucketServiceIAMRoleNameForRedshift:
+    Description: "Name of IAM Role that permits Redshift to access S3 Bucket"
+    Value: !Ref BucketServiceIAMRole
