@@ -2,7 +2,7 @@
 swagger: "2.0"
 info:
   version: "2017-01-10T20:57:23Z"
-  title: "API Gateway for Billing"
+  title: "Billing API Interfaces"
 schemes:
 - "https"
 paths:
@@ -51,7 +51,7 @@ paths:
         responses:
           default:
             statusCode: "200"
-        uri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:089476987273:function:${stageVariables.LambdaFunctionName}/invocations"
+        uri: "arn:aws:apigateway:AWS::REGION:lambda:path/2015-03-31/functions/arn:aws:lambda:AWS::REGION:AWS::ACCOUNT_ID:function:${stageVariables.LambdaFunctionName}/invocations"
         passthroughBehavior: "when_no_match"
         httpMethod: "POST"
         cacheNamespace: "u9k6f6"
@@ -66,9 +66,9 @@ securityDefinitions:
     in: "header"
     x-amazon-apigateway-authtype: "custom"
     x-amazon-apigateway-authorizer:
-      authorizerCredentials: "arn:aws:iam::089476987273:role/role_to_run_lambda"
+      authorizerCredentials: "arn:aws:iam::AWS::ACCOUNT_ID:role/AWS::CUSTOM_AUTHORIZER_ROLE_NAME"
       authorizerResultTtlInSeconds: 300
-      authorizerUri: "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:089476987273:function:SungardAS-aws-services-au-AuthorizerLambdaFunction-DDIYDKVDP773/invocations"
+      authorizerUri: "arn:aws:apigateway:AWS::REGION:lambda:path/2015-03-31/functions/arn:aws:lambda:AWS::REGION:AWS::ACCOUNT_ID:function:AWS::CUSTOM_AUTHORIZER_LAMBDA_NAME"
       type: "token"
 definitions:
   Empty:

@@ -43,21 +43,28 @@ Parameters:
     ConstraintDescription: "must be a valid CIDR range formatted as x.x.x.x/x"
   NameTag:
     Type: String
-    Default: "lambda-vpc"
+    Default: "redshift-vpc"
     AllowedPattern: "[\\x20-\\x7E]*"
     MaxLength: 255
     MinLength: 1
     Description: "Set the name tag for vpc."
     ConstraintDescription: "can contain only ASCII characters."
-  DBName:
+  RedshiftUser:
     Type: String
-    Default: lambdademo
-  MasterUsername:
-    Type: String
-    Default: lambda
-  MasterUserPassword:
+    Default: "billing"
+    Description: User Name for Redshift Cluster
+  RedshiftPass:
     Type: String
     NoEcho: true
+    Description: Password for Redshift Cluster. Password should be atleast 8 characters long.
+  RedshiftDatabase:
+    Type: String
+    Default: "billing"
+    Description: Database Name for Redshift Cluster.
+  AlarmThresholdNumber:
+    Type: Number
+    Default: 10
+    Description: Threshold Number for Alarms
 Resources:
   Vpc:
     Type: "AWS::CloudFormation::Stack"
@@ -69,6 +76,13 @@ Resources:
         OpenVpcCommunication: false
         CreateInternetGateway: false
         NameTag: !Ref NameTag
+  RouteTables:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: "./route_tables.yaml"
+      Parameters:
+        NameTag: !Ref NameTag
+        VpcId: !Sub "${Vpc.Outputs.VpcId}"
   PublicSubnet1:
     Type: "AWS::CloudFormation::Stack"
     Properties:
@@ -81,6 +95,7 @@ Resources:
         AvailabilityZone: !Select [ 1, !GetAZs "" ]
         VpcId: !Sub "${Vpc.Outputs.VpcId}"
         SubnetCidr: !Ref PublicCidr1
+        RouteTableId: !Sub "${RouteTables.Outputs.RouteTableIdForPublicSubnets}"
   PublicSubnet2:
     Type: "AWS::CloudFormation::Stack"
     Properties:
@@ -93,6 +108,7 @@ Resources:
         AvailabilityZone: !Select [ 1, !GetAZs "" ]
         VpcId: !Sub "${Vpc.Outputs.VpcId}"
         SubnetCidr: !Ref PublicCidr2
+        RouteTableId: !Sub "${RouteTables.Outputs.RouteTableIdForPublicSubnets}"
   PrivateSubnet1:
     Type: "AWS::CloudFormation::Stack"
     Properties:
@@ -105,6 +121,7 @@ Resources:
         VpcId: !Sub "${Vpc.Outputs.VpcId}"
         SubnetCidr: !Ref PrivateCidr1
         AvailabilityZone: !Sub "${PublicSubnet1.Outputs.AvailabilityZone}"
+        RouteTableId: !Sub "${RouteTables.Outputs.RouteTableIdForPrivateSubnets}"
   PrivateSubnet2:
     Type: "AWS::CloudFormation::Stack"
     Properties:
@@ -117,20 +134,7 @@ Resources:
         VpcId: !Sub "${Vpc.Outputs.VpcId}"
         SubnetCidr: !Ref PrivateCidr2
         AvailabilityZone: !Sub "${PublicSubnet2.Outputs.AvailabilityZone}"
-  SecurityGroups:
-    Type: "AWS::CloudFormation::Stack"
-    Properties:
-      TemplateURL: "./security_groups.yaml"
-      Parameters:
-        NameTag: !Ref NameTag
-        VpcId: !Sub "${Vpc.Outputs.VpcId}"
-  RouteTables:
-    Type: "AWS::CloudFormation::Stack"
-    Properties:
-      TemplateURL: "./route_tables.yaml"
-      Parameters:
-        NameTag: !Ref NameTag
-        VpcId: !Sub "${Vpc.Outputs.VpcId}"
+        RouteTableId: !Sub "${RouteTables.Outputs.RouteTableIdForPrivateSubnets}"
   NatGateway:
     Type: "AWS::CloudFormation::Stack"
     Properties:
@@ -138,26 +142,17 @@ Resources:
       Parameters:
         PublicSubnetId: !Sub "${PublicSubnet1.Outputs.SubnetId}"
         RouteTableId: !Sub "${RouteTables.Outputs.RouteTableIdForPrivateSubnets}"
-  RouteTableWithPublicSubnet1:
-    Type: "AWS::EC2::SubnetRouteTableAssociation"
+  RedshiftCluster:
+    Type: "AWS::CloudFormation::Stack"
     Properties:
-      RouteTableId: !Sub "${RouteTables.Outputs.RouteTableIdForPublicSubnets}"
-      SubnetId: !Sub "${PublicSubnet1.Outputs.SubnetId}"
-  RouteTableWithPublicSubnet2:
-    Type: "AWS::EC2::SubnetRouteTableAssociation"
-    Properties:
-      RouteTableId: !Sub "${RouteTables.Outputs.RouteTableIdForPublicSubnets}"
-      SubnetId: !Sub "${PublicSubnet2.Outputs.SubnetId}"
-  RouteTableWithPrivateSubnet1:
-    Type: "AWS::EC2::SubnetRouteTableAssociation"
-    Properties:
-      RouteTableId: !Sub "${RouteTables.Outputs.RouteTableIdForPrivateSubnets}"
-      SubnetId: !Sub "${PrivateSubnet1.Outputs.SubnetId}"
-  RouteTableWithPrivateSubnet2:
-    Type: "AWS::EC2::SubnetRouteTableAssociation"
-    Properties:
-      RouteTableId: !Sub "${RouteTables.Outputs.RouteTableIdForPrivateSubnets}"
-      SubnetId: !Sub "${PrivateSubnet2.Outputs.SubnetId}"
+      TemplateURL: "./redshift.yaml"
+      Parameters:
+        RedshiftUser: !Ref RedshiftUser
+        RedshiftPass: !Ref RedshiftPass
+        RedshiftDatabase: !Ref RedshiftDatabase
+        RedshiftSubnetId1: !Sub "${PrivateSubnet1.Outputs.SubnetId}"
+        RedshiftSubnetId2: !Sub "${PrivateSubnet2.Outputs.SubnetId}"
+        RedshiftSecurityGroupId: !Sub "${Vpc.Outputs.SecurityGroupId}"
   EncryptionDecryptionKey:
     Type: AWS::KMS::Key
     Properties:
@@ -190,7 +185,6 @@ Resources:
             Principal:
               AWS: !GetAtt LambdaFunctionIAMRole.Arn
             Resource: '*'
-
   LambdaFunctionIAMRole:
     Type: "AWS::IAM::Role"
     Properties:
@@ -227,7 +221,6 @@ Resources:
                   - "logs:CreateLogStream"
                   - "logs:PutLogEvents"
                 Resource: "arn:aws:logs:*:*:*"
-
   ApiGatewayApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -235,7 +228,6 @@ Resources:
       StageName: Prod
       Variables:
         LambdaFunctionName: !Ref ProxyFunction
-
   ProxyFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -244,6 +236,20 @@ Resources:
       CodeUri: ../src
       Role: !GetAtt LambdaFunctionIAMRole.Arn
       Timeout: 300
+      VpcConfig:
+        SecurityGroupIds:
+          - !Sub "${Vpc.Outputs.SecurityGroupId}"
+        SubnetIds:
+          - !Sub "${PrivateSubnet1.Outputs.SubnetId}"
+          - !Sub "${PrivateSubnet2.Outputs.SubnetId}"
+      Environment:
+        Variables:
+          REDSHIFT_CONNECTION_STRING: !Sub "${RedshiftCluster.Outputs.RedshiftConnectionString}"
+          REDSHIFT_USER: !Ref RedshiftUser
+          REDSHIFT_PASS: !Ref RedshiftPass
+          KMS_REGION: !Ref 'AWS::Region'
+          KMS_KEY_ID: !Ref EncryptionDecryptionKey
+          KMS_KEY_ARN: !GetAtt EncryptionDecryptionKey.Arn
       Events:
         ProxyApiGreedy:
           Type: Api
@@ -251,3 +257,195 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /{proxy+}
             Method: ANY
+  ImportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index_import.handler
+      Runtime: nodejs4.3
+      CodeUri: ../src
+      Role: !GetAtt LambdaFunctionIAMRole.Arn
+      Timeout: 300
+      VpcConfig:
+        SecurityGroupIds:
+          - !Sub "${Vpc.Outputs.SecurityGroupId}"
+        SubnetIds:
+          - !Sub "${PrivateSubnet1.Outputs.SubnetId}"
+          - !Sub "${PrivateSubnet2.Outputs.SubnetId}"
+      Environment:
+        Variables:
+          BUCKET_IAM_ROLE_ARN: !GetAtt BucketServiceIAMRole.Arn
+          BUCKET_REGION: !Ref 'AWS::Region'
+          REDSHIFT_CONNECTION_STRING: !Sub "${RedshiftCluster.Outputs.RedshiftConnectionString}"
+          REDSHIFT_USER: !Ref RedshiftUser
+          REDSHIFT_PASS: !Ref RedshiftPass
+          KMS_REGION: !Ref 'AWS::Region'
+          KMS_KEY_ID: !Ref EncryptionDecryptionKey
+          KMS_KEY_ARN: !GetAtt EncryptionDecryptionKey.Arn
+      Events:
+        BillingDataUpload:
+          Type: S3
+          Properties:
+            Bucket: !Ref Bucket
+            Events: s3:ObjectCreated:*
+
+  Bucket:
+    Type: AWS::S3::Bucket
+  MetricsLambdaFunctionIAMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "AllowLambdaServiceToAssumeRole"
+            Effect: "Allow"
+            Action:
+              - "sts:AssumeRole"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+      Policies:
+        -
+          PolicyName: "InlinePolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action:
+                  - "cloudwatch:*"
+                Resource: "*"
+              -
+                Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource: "arn:aws:sns:*"
+              -
+                Effect: "Allow"
+                Action:
+                  - "lambda:InvokeFunction"
+                Resource: "*"
+              -
+                Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+  MetricsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index_metrics.handler
+      Runtime: nodejs4.3
+      CodeUri: ../src
+      Role: !GetAtt MetricsLambdaFunctionIAMRole.Arn
+      Timeout: 300
+      Environment:
+        Variables:
+          THRESHOLD_FOR_ALARMS: !Ref AlarmThresholdNumber
+          TOPIC_ARN_FOR_ALARMS: !Ref Topic
+      Events:
+        Scheduler:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
+  AlertLambdaFunctionIAMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "AllowLambdaServiceToAssumeRole"
+            Effect: "Allow"
+            Action:
+              - "sts:AssumeRole"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+      Policies:
+        -
+          PolicyName: "InlinePolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action:
+                  - "cloudwatch:*"
+                Resource: "*"
+              -
+                Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource: "arn:aws:sns:*"
+              -
+                Effect: "Allow"
+                Action:
+                  - "dynamodb:GetItem"
+                  - "dynamodb:PutItem"
+                  - "dynamodb:Query"
+                Resource: "arn:aws:dynamodb:*"
+              -
+                Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+  AlertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index_alert.handler
+      Runtime: nodejs4.3
+      CodeUri: ../src
+      Role: !GetAtt AlertLambdaFunctionIAMRole.Arn
+      Timeout: 300
+      VpcConfig:
+        SecurityGroupIds:
+          - !Sub "${Vpc.Outputs.SecurityGroupId}"
+        SubnetIds:
+          - !Sub "${PrivateSubnet1.Outputs.SubnetId}"
+          - !Sub "${PrivateSubnet2.Outputs.SubnetId}"
+      Environment:
+        Variables:
+          REDSHIFT_CONNECTION_STRING: !Sub "${RedshiftCluster.Outputs.RedshiftConnectionString}"
+          REDSHIFT_USER: !Ref RedshiftUser
+          REDSHIFT_PASS: !Ref RedshiftPass
+          KMS_REGION: !Ref 'AWS::Region'
+          KMS_KEY_ID: !Ref EncryptionDecryptionKey
+          KMS_KEY_ARN: !GetAtt EncryptionDecryptionKey.Arn
+      Events:
+        Scheduler:
+          Type: SNS
+          Properties:
+            Topic: !Ref Topic
+  Topic:
+    Type: AWS::SNS::Topic
+Outputs:
+  ApiUrl:
+    Description: URL of your API endpoint
+    Value: !Join
+      - ''
+      - - https://
+        - !Ref ApiGatewayApi
+        - '.execute-api.'
+        - !Ref 'AWS::Region'
+        - '.amazonaws.com/Prod'
+  ProxyLambdaFunctionArn:
+    Description: "Proxy Lambda Function ARN"
+    Value: !GetAtt ProxyFunction.Arn
+  MetricsLambdaFunctionArn:
+    Description: "Metrics Lambda Function ARN"
+    Value: !GetAtt MetricsFunction.Arn
+  AlertLambdaFunctionArn:
+    Description: "Alert Lambda Function ARN"
+    Value: !GetAtt AlertFunction.Arn
+  EncryptionDecryptionKeyId:
+    Description: "Encryption Decryption KMS Key Id"
+    Value: !Ref EncryptionDecryptionKey
+  TopicArn:
+    Description: "SNS Topic Arn for Over Increased Percent"
+    Value: !Ref Topic
