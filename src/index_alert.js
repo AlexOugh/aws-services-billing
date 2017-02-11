@@ -1,66 +1,97 @@
 
 var metrics = new (require('./metrics'))();
+var dynamodb = new (require('../lib/aws/dynamodb.js'))();
 
 exports.handler = function (event, context) {
 
-  console.log(JSON.stringify(event));
-  var localRegion = event.region;
-  console.log("localRegion = " + localRegion);
-  var remoteRegion = 'us-east-1';
+  console.log(event.Records[0].Sns);
+  /*
+  { Type: 'Notification',
+    MessageId: 'bcd9cfd3-8ccc-54e6-ae0f-9ec0455801f4',
+    TopicArn: 'arn:aws:sns:us-east-1:266593598212:OverIncreasedPercentagesTopic',
+    Subject: 'ALARM: "282307656817-OverIncreasedPercentagesAlarm" in US East - N. Virginia',
+    Message: '{
+      "AlarmName":"282307656817-OverIncreasedPercentagesAlarm",
+      "AlarmDescription":"Alerted whenever the linked account\'s IncreasedPercentages[Sim] metric has new data.",
+      "AWSAccountId":"266593598212",
+      "NewStateValue":"ALARM",
+      "NewStateReason":"Threshold Crossed: 1 datapoint (12.499999999999993) was greater than the threshold (10.0).",
+      "StateChangeTime":"2017-02-07T13:10:44.738+0000",
+      "Region":"US East - N. Virginia",
+      "OldStateValue":"INSUFFICIENT_DATA",
+      "Trigger":{
+        "MetricName":"IncreasedPercentages",
+        "Namespace":"CTOBilling",
+        "Statistic":"MAXIMUM",
+        "Unit":"Percent",
+        "Dimensions":[{"name":"LinkedAccount","value":"282307656817"}],
+        "Period":60,
+        "EvaluationPeriods":1,
+        "ComparisonOperator":"GreaterThanThreshold",
+        "Threshold":10.0
+      }
+    }',
+    Timestamp: '2017-02-07T13:10:44.779Z',
+    SignatureVersion: '1',
+    Signature: 'XlDtFlhZ+Ncyr+uzuAO+AIzMdtNKZBP2OPoSMAsctpyu83Xv1e2y1AS9g+pZQUfbQ6ujWX468Gcv905wKwJCvxNXvoTQzbksiLY2PKEWODGMq+dI8W2IllcTFn5rYjY3aQTUp5N8moqM6Pfki6jHshyTbvqt0QvT9GSWLv8gwaSmyv2eRE+pt94dZRtjHS0rHHriLryGBDRk6ENaXzg2aHST85QKGVXzKYp+oDMM72wdhGU/Z07CxpkjDHw3XFrS2oXc6OxnJvJj0lPErUghhO3C4SI6mxT6n6f6X8yd1JuvvHBmf8e1yjCjFrMdoiqIq6QAzFKtR8O6+CLZB+/2CA==',
+    SigningCertUrl: 'https://sns.us-east-1.amazonaws.com/SimpleNotificationService-b95095beb82e8f6a046b3aafc7f4149a.pem',
+    UnsubscribeUrl: 'https://sns.us-east-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:us-east-1:266593598212:OverIncreasedPercentagesTopic:968f2960-1d59-4a46-af26-1549a3f3cbba',
+    MessageAttributes: {} }
+  */
+  var message_json = JSON.parse(event.Records[0].Sns.Message);
 
-  var fs = require("fs");
-  data = fs.readFileSync(__dirname + '/json/data_' + event.account + '.json', {encoding:'utf8'});
-  data_json = JSON.parse(data);
-  var federateAccount = data_json.federateAccount;
-  var masterBillingAccount = data_json.masterBillingAccount;
-  var roleName = data_json.roleName;
-  var roleExternalId = data_json.roleExternalId;
-  var sessionName = data_json.sessionName;
-  var durationSeconds = data_json.durationSeconds;
-  var simulated = data_json.simulated;
-  var billingAccounts = data_json.billingAccounts;
+  var region = event.Records[0].EventSubscriptionArn.split(":")[3];
 
-  var roles = [];
-  roles.push({roleArn:'arn:aws:iam::' + federateAccount + ':role/federate'});
-  var admin_role = {roleArn:'arn:aws:iam::' + masterBillingAccount + ':role/' + roleName};
-  if (roleExternalId) {
-    admin_role.externalId = roleExternalId;
-  }
-  roles.push(admin_role);
-  console.log(roles);
-
+  var messageId = event.Records[0].Sns.MessageId;
+  var subject = event.Records[0].Sns.Subject;
+  var message = message_json.NewStateReason;
+  var sentBy = event.Records[0].Sns.TopicArn;
+  var sentAt = event.Records[0].Sns.Timestamp;
+  var awsid = null;
+  var awsids = message_json.Trigger.Dimensions.filter(function(dimension) {
+    return dimension.name == 'LinkedAccount';
+  });
+  if (awsids[0])  awsid = awsids[0].value;
+  else awsid = message_json.AWSAccountId;
   var current = new Date();
-  addMetricData(0, billingAccounts, roles, sessionName, durationSeconds, localRegion, remoteRegion, simulated, current, function(err, data) {
-    if(err) {
+
+  metrics.isIncreasedUsagesOver(awsid, region, current, function(err, data) {
+    if (err) {
       context.fail(err, null);
     }
     else {
-      console.log('completed to add metrics in all account');
-      context.done(null, data);
+      if (!data) {
+        // the increased usage is not what should be alerted
+        context.done(null, true);
+      }
+      else {
+        var item = {
+            "id": {"S": messageId},
+            "awsid": {"S": awsid},
+            "subject": {"S": subject},
+            "message": {"S": message},
+            "sentBy": {"S": sentBy},
+            "sentAt": {"S": sentAt},
+            //"createdAt": {"S": current.toISOString()},
+            //"updatedAt": {"S": current.toISOString()},
+            //"account": {"N": '0'},
+            //"archivedBy": {"S": "none"}
+        }
+        console.log(item);
+
+        var input = {
+          region: region,
+          tableName: 'billingalerts',
+          item: item
+        };
+
+        dynamodb.save(input, function(err, data) {
+          if (err)  context.fail(err, null);
+          else {
+            context.done(null, true);
+          }
+        });
+      }
     }
   });
 }
-
-function addMetricData(idx, billingAccounts, roles, sessionName, durationSeconds, localRegion, remoteRegion, simulated, current, callback) {
-  var billingAccount = billingAccounts[idx];
-  metrics.addMetricData(billingAccount, roles, sessionName, durationSeconds, localRegion, remoteRegion, simulated, current, function(err, data) {
-    if(err) {
-      console.log("failed to add metrics in account[" + billingAccount + "] : " + err);
-      callback(err, null);
-    }
-    else {
-      if (!data) {
-        console.log('no estimated charges metrics found in account[' + billingAccount + ']');
-      }
-      else {
-        console.log('completed to add metrics in account[' + billingAccount + ']');
-      }
-      if (++idx == billingAccounts.length) {
-        callback(null, true);
-      }
-      else {
-        addMetricData(idx, billingAccounts, roles, sessionName, durationSeconds, localRegion, remoteRegion, simulated, current, callback);
-      }
-    }
-  });
-};
