@@ -153,6 +153,23 @@ Resources:
         RedshiftSubnetId1: !Sub "${PrivateSubnet1.Outputs.SubnetId}"
         RedshiftSubnetId2: !Sub "${PrivateSubnet2.Outputs.SubnetId}"
         RedshiftSecurityGroupId: !Sub "${Vpc.Outputs.SecurityGroupId}"
+  BucketServiceIAMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: "AllowRedshiftServiceToAssumeRole"
+            Effect: "Allow"
+            Action:
+              - "sts:AssumeRole"
+            Principal:
+              Service:
+                - "redshift.amazonaws.com"
   EncryptionDecryptionKey:
     Type: AWS::KMS::Key
     Properties:
