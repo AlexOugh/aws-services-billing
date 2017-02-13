@@ -1,30 +1,47 @@
 
 var AWS = require('aws-sdk');
+var ALARM_NAME_PREFIX = 'OverIncreasedPercentagesAlarm-';
 
 module.exports = {
 
   setup: function(params) {
-    var self = this;
-    console.log(params);
-    return self.find(params).then(function(data) {
-      console.log(data);
-      if (data.MetricAlarms.length == 0) {
-        console.log("No alarm found for account " + params.accountId);
-        return self.add(params);
+    //console.log(params);
+    var accountAlarms = params.allAlarms.filter(function(alarm) {
+      return alarm.AlarmName == ALARM_NAME_PREFIX + params.accountId;
+    });
+    if (accountAlarms.length == 0) {
+      return this.add(params).then(function(data) {
+        console.log("Created Alarm for account " + params.accountId);
+        return data;
+      });
+    }
+    else {
+      if (accountAlarms[0].Threshold == params.threshold) {
+        console.log("Alarm found for account " + params.accountId + ", so just return");
+        Promise.resolve(true);
       }
       else {
-        if (data.MetricAlarms[0].Threshold == params.threshold) {
-          console.log("Alarm found for account " + params.accountId + ", so just return");
-          Promise.resolve(true);
-        }
-        else {
-          console.log("Threshold has been changed from " + data.MetricAlarms[0].Threshold + " to " + params.threshold + " for account " + params.accountId);
-          return self.add(params);
-        }
+        return this.add(params).then(function(data) {
+          console.log("Updated Threshold of Alarm for account " + params.accountId);
+          return data;
+        });
       }
-    }).catch(function(err) {
-      throw err;
-    });
+    }
+  },
+
+  findByNamePrefix: function(params) {
+    var cloudwatch = new AWS.CloudWatch({region:params.region});
+    var input = {
+      //ActionPrefix: 'STRING_VALUE',
+      AlarmNamePrefix: ALARM_NAME_PREFIX,
+      /*AlarmNames: [
+        'STRING_VALUE',
+      ],*/
+      //MaxRecords: 0,
+      //NextToken: 'STRING_VALUE',
+      //StateValue: 'OK | ALARM | INSUFFICIENT_DATA'
+    };
+    return cloudwatch.describeAlarms(input).promise();
   },
 
   find: function(params) {
@@ -45,8 +62,8 @@ module.exports = {
     { ResponseMetadata: { RequestId: '1b97dfdd-ee6e-11e6-86be-fd25241a476c' },
       MetricAlarms:
       [ {
-        AlarmName: '089476987273-OverIncreasedPercentagesAlarm',
-        AlarmArn: 'arn:aws:cloudwatch:us-east-1:089476987273:alarm:089476987273-OverIncreasedPercentagesAlarm',
+        AlarmName: 'OverIncreasedPercentagesAlarm-089476987273-',
+        AlarmArn: 'arn:aws:cloudwatch:us-east-1:089476987273:alarm:OverIncreasedPercentagesAlarm-089476987273-',
         AlarmDescription: 'Alerted whenever the linked account\'s IncreasedPercentages[Sim] metric has new data.',
         AlarmConfigurationUpdatedTimestamp: Wed Feb 08 2017 20:16:47 GMT-0600 (CST),
         ActionsEnabled: true,
@@ -72,7 +89,7 @@ module.exports = {
 
   add: function(params) {
     var input = {
-      AlarmName: params.accountId + '-OverIncreasedPercentagesAlarm',
+      AlarmName: ALARM_NAME_PREFIX + params.accountId,
       ComparisonOperator: 'GreaterThanThreshold',
       EvaluationPeriods: 1,
       MetricName: 'IncreasedPercentages',
@@ -100,5 +117,24 @@ module.exports = {
     };
     var cloudwatch = new AWS.CloudWatch({region:params.region});
     return cloudwatch.putMetricAlarm(input).promise();
+  },
+
+  deleteAll: function(params) {
+    return this.findByNamePrefix(params).then(function(data) {
+      return data.MetricAlarms;
+    }).then(function(allAlarms) {
+      console.log(allAlarms.length + " alarms found");
+      var names = [];
+      allAlarms.forEach(function(alarm){
+        names.push(alarm.AlarmName);
+      });
+      var input = {
+        AlarmNames: names
+      };
+      console.log(input);
+      var cloudwatch = new AWS.CloudWatch({region:params.region});
+      return cloudwatch.deleteAlarms(input).promise();
+      //return Promise.resolve(input);
+    })
   }
 }

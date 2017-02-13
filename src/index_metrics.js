@@ -48,14 +48,24 @@ exports.handler = function (event, context) {
     return billingAccounts;
   }).then(function(billingAccounts) {
     console.log(billingAccounts);
+    console.log(billingAccounts.length + " accounts found");
+    // find all metrics
+    return alarms.findByNamePrefix({region: localRegion}).then(function(data) {
+      return [billingAccounts, data.MetricAlarms];
+    });
+  }).then(function(data) {
+    var billingAccounts = data[0];
+    var allAlarms = data[1];
     // setup alarms if not exist for each billing account
     var promises = [];
     billingAccounts.forEach(function(account) {
+      // find this account's alarm is already created
       var alarmParams = {
         region: localRegion,
         accountId: account,
         topicArn: topicArn,
-        threshold: threshold
+        threshold: threshold,
+        allAlarms: allAlarms
       }
       promises.push(alarms.setup(alarmParams));
     });
