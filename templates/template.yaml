@@ -61,6 +61,12 @@ Parameters:
     Type: String
     Default: "billing"
     Description: Database Name for Redshift Cluster.
+  RedshiftSnapshotIdentifier:
+    Type: String
+    Description: Identifier of Redshift Snapshot for Restoration.
+  RedshiftSnapshotClusterIdentifier:
+    Type: String
+    Description: Redshift Cluster Identifier of Source Snapshot. This must be specified if RedshiftSnapshotIdentifier is set.
   AlarmThresholdNumber:
     Type: Number
     Default: 10
@@ -160,6 +166,8 @@ Resources:
         RedshiftSubnetId1: !Sub "${PrivateSubnet1.Outputs.SubnetId}"
         RedshiftSubnetId2: !Sub "${PrivateSubnet2.Outputs.SubnetId}"
         RedshiftSecurityGroupId: !Sub "${SecurityGroups.Outputs.RedshiftSecurityGroupId}"
+        RedshiftSnapshotIdentifier: !Ref RedshiftSnapshotIdentifier
+        RedshiftSnapshotClusterIdentifier: !Ref RedshiftSnapshotClusterIdentifier
   BucketServiceIAMRole:
     Type: "AWS::IAM::Role"
     Properties:
