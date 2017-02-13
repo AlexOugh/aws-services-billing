@@ -67,7 +67,7 @@ function Metrics() {
         Value: null
       }
     ],
-    Namespace: 'CTOBilling'
+    Namespace: 'SGASBilling'
   };
 
   // metrics for IncreasedPercentages Query
@@ -75,7 +75,7 @@ function Metrics() {
     StartTime: null,
     EndTime: null,
     MetricName: 'IncreasedPercentages',
-    Namespace: 'CTOBilling',
+    Namespace: 'SGASBilling',
     Period: 60 * 60 * 4,
     Statistics: [
      'SampleCount', 'Average', 'Sum', 'Minimum', 'Maximum'

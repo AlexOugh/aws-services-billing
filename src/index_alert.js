@@ -21,7 +21,7 @@ exports.handler = function (event, context) {
       "OldStateValue":"INSUFFICIENT_DATA",
       "Trigger":{
         "MetricName":"IncreasedPercentages",
-        "Namespace":"CTOBilling",
+        "Namespace":"SGASBilling",
         "Statistic":"MAXIMUM",
         "Unit":"Percent",
         "Dimensions":[{"name":"LinkedAccount","value":"282307656817"}],

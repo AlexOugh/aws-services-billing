@@ -31,7 +31,7 @@ module.exports = {
     var cloudwatch = new AWS.CloudWatch({region:params.region});
     var input = {
       MetricName: 'IncreasedPercentages',
-      Namespace: 'CTOBilling',
+      Namespace: 'SGASBilling',
       Dimensions: [
         {
           Name: 'LinkedAccount',
@@ -57,7 +57,7 @@ module.exports = {
         StateReason: 'Unchecked: Initial alarm creation',
         StateUpdatedTimestamp: Wed Feb 08 2017 20:16:47 GMT-0600 (CST),
         MetricName: 'IncreasedPercentages',
-        Namespace: 'CTOBilling',
+        Namespace: 'SGASBilling',
         Statistic: 'Maximum',
         Dimensions: [Object],
         Period: 60,
@@ -76,7 +76,7 @@ module.exports = {
       ComparisonOperator: 'GreaterThanThreshold',
       EvaluationPeriods: 1,
       MetricName: 'IncreasedPercentages',
-      Namespace: 'CTOBilling',
+      Namespace: 'SGASBilling',
       Period: 60,
       Threshold: params.threshold,
       ActionsEnabled: true,
