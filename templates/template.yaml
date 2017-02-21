@@ -71,6 +71,17 @@ Parameters:
     Type: Number
     Default: 10
     Description: Threshold Number for Alarms
+  AllowedUsagePercentage:
+    Type: Number
+    Default: 0.02
+    Description: Allowed Usage Percentage from Average of Previous Month Usages
+  PlotlyUsername:
+    Type: String
+    Description: Plotly Username
+  PlotlyAPIKey:
+    Type: String
+    NoEcho: true
+    Description: Plotly API Key
 Resources:
   Vpc:
     Type: "AWS::CloudFormation::Stack"
@@ -282,7 +293,6 @@ Resources:
           REDSHIFT_PASS: !Ref RedshiftPass
           KMS_REGION: !Ref 'AWS::Region'
           KMS_KEY_ID: !Ref EncryptionDecryptionKey
-          KMS_KEY_ARN: !GetAtt EncryptionDecryptionKey.Arn
       Events:
         ProxyApiGreedy:
           Type: Api
@@ -313,14 +323,12 @@ Resources:
           REDSHIFT_PASS: !Ref RedshiftPass
           KMS_REGION: !Ref 'AWS::Region'
           KMS_KEY_ID: !Ref EncryptionDecryptionKey
-          KMS_KEY_ARN: !GetAtt EncryptionDecryptionKey.Arn
       Events:
         BillingDataUpload:
           Type: S3
           Properties:
             Bucket: !Ref Bucket
             Events: s3:ObjectCreated:*
-
   Bucket:
     Type: AWS::S3::Bucket
   MetricsLambdaFunctionIAMRole:
@@ -366,10 +374,26 @@ Resources:
                   - "logs:CreateLogStream"
                   - "logs:PutLogEvents"
                 Resource: "arn:aws:logs:*:*:*"
-  MetricsFunction:
+  EstimatedAlarmsFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: index_metrics.handler
+      Handler: index_estimated_alarms.handler
+      Runtime: nodejs4.3
+      CodeUri: ../src
+      Role: !GetAtt MetricsLambdaFunctionIAMRole.Arn
+      Timeout: 300
+      Environment:
+        Variables:
+          TOPIC_ARN_FOR_ALARMS: !Ref Topic
+      Events:
+        Scheduler:
+          Type: Schedule
+          Properties:
+            Schedule: rate(6 hours)
+  PercentageMetricsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index_percentage_metrics.handler
       Runtime: nodejs4.3
       CodeUri: ../src
       Role: !GetAtt MetricsLambdaFunctionIAMRole.Arn
@@ -379,10 +403,10 @@ Resources:
           THRESHOLD_FOR_ALARMS: !Ref AlarmThresholdNumber
           TOPIC_ARN_FOR_ALARMS: !Ref Topic
       Events:
-        Scheduler:
-          Type: Schedule
+        BillingMetricTopic:
+          Type: SNS
           Properties:
-            Schedule: rate(5 minutes)
+            Topic: !Ref Topic
   AlertLambdaFunctionIAMRole:
     Type: "AWS::IAM::Role"
     Properties:
@@ -414,6 +438,7 @@ Resources:
                 Effect: "Allow"
                 Action:
                   - "sns:Publish"
+                  - "kms:*"
                 Resource: "arn:aws:sns:*"
               -
                 Effect: "Allow"
@@ -448,16 +473,22 @@ Resources:
           REDSHIFT_CONNECTION_STRING: !Sub "${RedshiftCluster.Outputs.RedshiftConnectionString}"
           REDSHIFT_USER: !Ref RedshiftUser
           REDSHIFT_PASS: !Ref RedshiftPass
+          ALLOWED_PERCENTAGE: !Ref AllowedUsagePercentage
+          S3_BUCKET_NAME: !Ref Bucket
+          PLOTLY_USERNAME: !Ref PlotlyUsername
+          PLOTLY_API_KEY: !Ref PlotlyAPIKey
+          DYNAMODB_ALERT_TABLE_NAME: !Ref Table
           KMS_REGION: !Ref 'AWS::Region'
           KMS_KEY_ID: !Ref EncryptionDecryptionKey
-          KMS_KEY_ARN: !GetAtt EncryptionDecryptionKey.Arn
       Events:
-        Scheduler:
+        BillingAlertTopic:
           Type: SNS
           Properties:
             Topic: !Ref Topic
   Topic:
     Type: AWS::SNS::Topic
+  Table:
+    Type: AWS::Serverless::SimpleTable
 Outputs:
   ApiUrl:
     Description: URL of your API endpoint
@@ -471,9 +502,12 @@ Outputs:
   ProxyLambdaFunctionArn:
     Description: "Proxy Lambda Function ARN"
     Value: !GetAtt ProxyFunction.Arn
-  MetricsLambdaFunctionArn:
-    Description: "Metrics Lambda Function ARN"
-    Value: !GetAtt MetricsFunction.Arn
+  EstimatedAlarmsLambdaFunctionArn:
+    Description: "Lambda Function ARN to Create Estimated Charges Alarams"
+    Value: !GetAtt EstimatedAlarmsFunction.Arn
+  PercentageMetricsLambdaFunctionArn:
+    Description: "Lambda Function ARN to Create Increased Percentages Metrics"
+    Value: !GetAtt PercentageMetricsFunction.Arn
   AlertLambdaFunctionArn:
     Description: "Alert Lambda Function ARN"
     Value: !GetAtt AlertFunction.Arn

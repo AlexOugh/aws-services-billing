@@ -40,7 +40,7 @@ function Metrics() {
   };
 
   // metrics for Increased data metrics
-  this.CTOIncreasedMetricData = {
+  this.SGASIncreasedMetricData = {
     MetricData: [
       {
         MetricName: 'IncreasedPercentages',
@@ -161,7 +161,7 @@ function Metrics() {
     }
 
     //currentTime = new Date();
-    metricData = me.CTOIncreasedMetricData;
+    metricData = me.SGASIncreasedMetricData;
     //metricData.MetricData[0].Timestamp = currentTime;
     metricData.MetricData[0].Timestamp = timeStamp;
     metricData.MetricData[0].Value = percentage;

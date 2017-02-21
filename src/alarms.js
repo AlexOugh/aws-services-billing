@@ -1,13 +1,12 @@
 
 var AWS = require('aws-sdk');
-var ALARM_NAME_PREFIX = 'OverIncreasedPercentagesAlarm-';
 
 module.exports = {
 
   setup: function(params) {
     //console.log(params);
     var accountAlarms = params.allAlarms.filter(function(alarm) {
-      return alarm.AlarmName == ALARM_NAME_PREFIX + params.accountId;
+      return alarm.AlarmName == params.ALARM_NAME_PREFIX + params.accountId;
     });
     if (accountAlarms.length == 0) {
       return this.add(params).then(function(data) {
@@ -29,11 +28,39 @@ module.exports = {
     }
   },
 
+  setupOne: function(params) {
+    var self = this;
+    console.log(params);
+    return self.find(params).then(function(data) {
+      console.log(data);
+      if (data.MetricAlarms.length == 0) {
+        return self.add(params).then(function(data) {
+          console.log("Created Alarm for account " + params.accountId);
+          return data;
+        });
+      }
+      else {
+        if (data.MetricAlarms[0].Threshold == params.threshold) {
+          console.log("Alarm found for account " + params.accountId + ", so just return");
+          Promise.resolve(true);
+        }
+        else {
+          return self.add(params).then(function(data) {
+            console.log("Updated Threshold of Alarm for account " + params.accountId);
+            return data;
+          });
+        }
+      }
+    }).catch(function(err) {
+      throw err;
+    });
+  },
+
   findByNamePrefix: function(params) {
     var cloudwatch = new AWS.CloudWatch({region:params.region});
     var input = {
       //ActionPrefix: 'STRING_VALUE',
-      AlarmNamePrefix: ALARM_NAME_PREFIX,
+      AlarmNamePrefix: params.ALARM_NAME_PREFIX,
       /*AlarmNames: [
         'STRING_VALUE',
       ],*/
@@ -47,15 +74,15 @@ module.exports = {
   find: function(params) {
     var cloudwatch = new AWS.CloudWatch({region:params.region});
     var input = {
-      MetricName: 'IncreasedPercentages',
-      Namespace: 'SGASBilling',
+      MetricName: params.metricsName,
+      Namespace: params.metricsNameSpace,
       Dimensions: [
         {
           Name: 'LinkedAccount',
           Value: params.accountId
         }
       ],
-      Unit: 'Percent'
+      Unit: params.metricsUnit
     };
     return cloudwatch.describeAlarmsForMetric(input).promise();
     /*
@@ -89,31 +116,26 @@ module.exports = {
 
   add: function(params) {
     var input = {
-      AlarmName: ALARM_NAME_PREFIX + params.accountId,
+      AlarmName: params.ALARM_NAME_PREFIX + params.accountId,
       ComparisonOperator: 'GreaterThanThreshold',
       EvaluationPeriods: 1,
-      MetricName: 'IncreasedPercentages',
-      Namespace: 'SGASBilling',
-      Period: 60,
+      MetricName: params.metricsName,
+      Namespace: params.metricsNameSpace,
+      Period: params.period,
       Threshold: params.threshold,
       ActionsEnabled: true,
       AlarmActions: [
         params.topicArn
       ],
-      AlarmDescription: "Alerted whenever the linked account's IncreasedPercentages metric value is greater then threshold.",
-      Dimensions: [
-        {
-          Name: 'LinkedAccount',
-          Value: params.accountId
-        }
-      ],
+      AlarmDescription: params.description,
+      Dimensions: params.dimensions,
       //ExtendedStatistic: 'STRING_VALUE',
       InsufficientDataActions: [
       ],
       OKActions: [
       ],
       Statistic: 'Maximum',
-      Unit: 'Percent'
+      Unit: params.metricsUnit
     };
     var cloudwatch = new AWS.CloudWatch({region:params.region});
     return cloudwatch.putMetricAlarm(input).promise();
@@ -134,7 +156,6 @@ module.exports = {
       console.log(input);
       var cloudwatch = new AWS.CloudWatch({region:params.region});
       return cloudwatch.deleteAlarms(input).promise();
-      //return Promise.resolve(input);
     })
   }
 }
