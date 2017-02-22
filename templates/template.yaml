@@ -228,6 +228,14 @@ Resources:
             Principal:
               AWS: !GetAtt LambdaFunctionIAMRole.Arn
             Resource: '*'
+          -
+            Sid: "Allow Decryption Service to use this key"
+            Effect: "Allow"
+            Action:
+              - "kms:Decrypt"
+            Principal:
+              AWS: !GetAtt AlertLambdaFunctionIAMRole.Arn
+            Resource: '*'
   LambdaFunctionIAMRole:
     Type: "AWS::IAM::Role"
     Properties:
@@ -433,6 +441,7 @@ Resources:
                 Action:
                   - "cloudwatch:*"
                   - "ec2:*"
+                  - "s3:*"
                 Resource: "*"
               -
                 Effect: "Allow"

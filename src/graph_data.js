@@ -58,14 +58,17 @@ function buildGraph(data, callback) {
       height: 600
   };
   plotly.getImage(figure, imgOpts, function (error, imageStream) {
-    if (error) throw error;
+    if (error) {
+      console.log("failed to getImage : " + error);
+      throw error;
+    }
     var AWS = require('aws-sdk');
     var keyName = 'graphs/' + uuid.v4() + '.png';
     var s3obj = new AWS.S3({"params": {Bucket: process.env.S3_BUCKET_NAME, Key: keyName, ACL:"public-read"}});
     //console.log(s3obj);
     s3obj.upload({Body: imageStream}).
       on('httpUploadProgress', function(evt) {
-        //console.log(evt);
+        console.log(evt);
       }).
       send(function(err, data) {
         if (err) {
