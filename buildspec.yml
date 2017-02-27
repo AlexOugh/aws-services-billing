@@ -1,9 +1,9 @@
 version: 0.1
 phases:
-  build:
+  install:
     commands:
       - pip install --upgrade --user awscli
-  install:
+  build:
     commands:
       - npm install time
       - sed -i "s/AWS::REGION/$AWS_DEFAULT_REGION/g" swagger.yaml
