@@ -23,6 +23,7 @@ var querySum = "select lineItem_UsageAccountId, \
   from AWSBilling<year_month> \
   where lineitem_usageenddate <= '<usage_end_date>' \
   and lineitem_usageaccountid = '<account>' \
+  and datediff(hour,cast(lineitem_usagestartdate as datetime),cast(lineitem_usageenddate as datetime)) = 1 \
   group by lineItem_UsageAccountId \
   order by lineItem_UsageAccountId;"
 
@@ -33,6 +34,7 @@ var queryServiceSum = "select lineItem_UsageAccountId, lineitem_productcode serv
   from AWSBilling<year_month> \
   where lineitem_usageenddate <= '<usage_end_date>' \
   and lineitem_usageaccountid = '<account>' \
+  and datediff(hour,cast(lineitem_usagestartdate as datetime),cast(lineitem_usageenddate as datetime)) = 1 \
   group by lineItem_UsageAccountId, lineitem_productcode \
   order by lineItem_UsageAccountId, lineitem_productcode;"
 
@@ -42,8 +44,8 @@ module.exports = {
     var lastEndDate = new Date(params.metricData.Timestamp);
     var yearMonth = dateformat(lastEndDate, 'yyyymm');
     querySum = querySum.replace("<account>", params.accountId);
-    return getConnectionString().then(function(connectionString) {
-      connection = pgp(connectionString);
+    return setConnection().then(function(data) {
+      //connection = pgp(connectionString);
       var promises = [];
       var prevMonthcount = 0;
       var monthData = findMonthDate(lastEndDate, prevMonthcount);
@@ -69,8 +71,8 @@ module.exports = {
     var lastEndDate = new Date(params.metricData.Timestamp);
     var yearMonth = dateformat(lastEndDate, 'yyyymm');
     queryServiceSum = queryServiceSum.replace("<account>", params.accountId);
-    return getConnectionString().then(function(connectionString) {
-      connection = pgp(connectionString);
+    return setConnection().then(function(data) {
+      //connection = pgp(connectionString);
       var promises = [];
       var prevMonthcount = 0;
       var monthData = findMonthDate(lastEndDate, prevMonthcount);
@@ -93,14 +95,17 @@ module.exports = {
   }
 }
 
-function getConnectionString() {
+function setConnection() {
+  if (connection) return Promise.resolve();
   var input = {
     region: kmsRegion,
     password: redshiftPass
   };
   return kms.decrypt(input).then(function(data) {
     var password = data.Plaintext.toString();
-    return 'pg:' + redshiftUser + ':' + password + '@' + redshiftConnectionString;
+    var connectionString = 'pg:' + redshiftUser + ':' + password + '@' + redshiftConnectionString;
+    connection = pgp(connectionString);
+    return true;
   });
 }
 

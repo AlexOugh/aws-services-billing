@@ -34,7 +34,7 @@ exports.handler = function (event, context) {
     metricsName: 'IncreasedPercentages',
     metricsNameSpace: 'SGASBilling',
     metricsUnit: 'Percent',
-    period: 60, // 1 minute
+    period: 60*60, // 1 hour
     description: "Alerted whenever the linked account's IncreasedPercentages metric value is greater then threshold.",
     dimensions: [
       {
@@ -45,20 +45,19 @@ exports.handler = function (event, context) {
     threshold: threshold,
     ALARM_NAME_PREFIX: 'OverIncreasedPercentagesAlarm-'
   };
-  return alarms.setupOne(alarmParams).then(function(data) {
-    return true;
-  }).then(function(data) {
-    metrics.addMetricData(accountId, null, region, region, new Date(), function(err, data) {
-      if(err) {
-        console.log("failed to add metrics in account[" + accountId + "] : " + err);
-        context.fail(err, null);
-      }
-      else {
-        console.log('completed to add metrics in account[' + accountId + ']');
+  metrics.addMetricData(accountId, null, region, region, new Date(), function(err, data) {
+    if(err) {
+      console.log("failed to add metrics in account[" + accountId + "] : " + err);
+      context.fail(err, null);
+    }
+    else {
+      console.log('completed to add metrics in account[' + accountId + ']');
+      console.log(data);
+      alarms.setupOne(alarmParams).then(function(data) {
         context.done(null, data);
-      }
-    });
-  }).catch(function(err) {
-    context.fail(err);
-  })
+      }).catch(function(err) {
+        context.fail(err);
+      });
+    }
+  });
 }

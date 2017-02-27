@@ -392,7 +392,7 @@ Resources:
       Timeout: 300
       Environment:
         Variables:
-          TOPIC_ARN_FOR_ALARMS: !Ref Topic
+          TOPIC_ARN_FOR_ALARMS: !Ref EstimatedChargesTopic
       Events:
         Scheduler:
           Type: Schedule
@@ -409,12 +409,14 @@ Resources:
       Environment:
         Variables:
           THRESHOLD_FOR_ALARMS: !Ref AlarmThresholdNumber
-          TOPIC_ARN_FOR_ALARMS: !Ref Topic
+          TOPIC_ARN_FOR_ALARMS: !Ref OverIncreasedPercentTopic
       Events:
         BillingMetricTopic:
           Type: SNS
           Properties:
-            Topic: !Ref Topic
+            Topic: !Ref EstimatedChargesTopic
+  EstimatedChargesTopic:
+    Type: AWS::SNS::Topic
   AlertLambdaFunctionIAMRole:
     Type: "AWS::IAM::Role"
     Properties:
@@ -483,7 +485,7 @@ Resources:
           REDSHIFT_USER: !Ref RedshiftUser
           REDSHIFT_PASS: !Ref RedshiftPass
           ALLOWED_PERCENTAGE: !Ref AllowedUsagePercentage
-          S3_BUCKET_NAME: !Ref Bucket
+          S3_BUCKET_NAME: !Ref GraphImageBucket
           PLOTLY_USERNAME: !Ref PlotlyUsername
           PLOTLY_API_KEY: !Ref PlotlyAPIKey
           DYNAMODB_ALERT_TABLE_NAME: !Ref Table
@@ -493,8 +495,10 @@ Resources:
         BillingAlertTopic:
           Type: SNS
           Properties:
-            Topic: !Ref Topic
-  Topic:
+            Topic: !Ref OverIncreasedPercentTopic
+  GraphImageBucket:
+    Type: AWS::S3::Bucket
+  OverIncreasedPercentTopic:
     Type: AWS::SNS::Topic
   Table:
     Type: AWS::Serverless::SimpleTable
@@ -523,12 +527,18 @@ Outputs:
   EncryptionDecryptionKeyId:
     Description: "Encryption Decryption KMS Key Id"
     Value: !Ref EncryptionDecryptionKey
-  TopicArn:
+  EstimatedChargesTopicArn:
+    Description: "SNS Topic Arn for EstimatedCharges"
+    Value: !Ref EstimatedChargesTopic
+  OverIncreasedPercentTopicArn:
     Description: "SNS Topic Arn for Over Increased Percent"
-    Value: !Ref Topic
+    Value: !Ref OverIncreasedPercentTopic
   BillingDataUploadBucketName:
     Description: "Billing Data Upload Bucket Name"
     Value: !Ref Bucket
   BucketServiceIAMRoleNameForRedshift:
     Description: "Name of IAM Role that permits Redshift to access S3 Bucket"
     Value: !Ref BucketServiceIAMRole
+  GraphImageBucketBucketName:
+    Description: "Graph Image Bucket Bucket Name"
+    Value: !Ref GraphImageBucket
